@@ -4,15 +4,37 @@ import React, { useState } from 'react';
 
 export default function Dashboard() {
   const [activeTab, setActiveTab] = useState('mint'); // 'mint' or 'collection'
-//   const [userNFTs] = useState([
-//     { id: 1, name: "Cosmic Cat #001", image: "🐱", chain: "Ethereum", status: "Minted" },
-//     { id: 2, name: "Digital Dawn", image: "🌅", chain: "Solana", status: "Minted" },
-//     { id: 3, name: "Pixel Punk", image: "👾", chain: "Polygon", status: "Pending" },
-//     { id: 4, name: "Abstract Art #42", image: "🎨", chain: "Hedera", status: "Minted" },
-//     { id: 5, name: "Galaxy Explorer", image: "🚀", chain: "Ethereum", status: "Minted" },
-//     { id: 6, name: "Neon Dreams", image: "💎", chain: "Solana", status: "Minted" },
-//   ]);
-    // const userNFTs = await fetch('api/hedera/nfts').then(res => res.json());
+  const [viewTab, setViewTab] = useState('nfts'); // 'nfts' or 'collections'
+  const [userNFTs] = useState([
+    { id: 1, name: "Cosmic Cat #001", image: "🐱", chain: "Ethereum", status: "Minted", collection: "Cosmic Cats" },
+    { id: 2, name: "Digital Dawn", image: "🌅", chain: "Solana", status: "Minted", collection: "Nature Series" },
+    { id: 3, name: "Pixel Punk", image: "👾", chain: "Polygon", status: "Pending", collection: "Pixel Art" },
+    { id: 4, name: "Abstract Art #42", image: "🎨", chain: "Hedera", status: "Minted", collection: "Abstract Collection" },
+    { id: 5, name: "Galaxy Explorer", image: "🚀", chain: "Ethereum", status: "Minted", collection: "Space Series" },
+    { id: 6, name: "Neon Dreams", image: "💎", chain: "Solana", status: "Minted", collection: "Neon Collection" },
+    { id: 7, name: "Cyber Wolf", image: "🐺", chain: "Ethereum", status: "Minted", collection: "Cyber Pack" },
+    { id: 8, name: "Ocean Wave", image: "🌊", chain: "Solana", status: "Minted", collection: "Nature Series" },
+  ]);
+
+  const [userCollections] = useState([
+    { id: 1, name: "Cosmic Cats", nftCount: 15, chain: "Ethereum", description: "A collection of cosmic feline adventures", image: "🐱" },
+    { id: 2, name: "Nature Series", nftCount: 8, chain: "Solana", description: "Beautiful nature-inspired digital art", image: "🌅" },
+    { id: 3, name: "Pixel Art", nftCount: 23, chain: "Polygon", description: "Retro pixel art collection", image: "👾" },
+    { id: 4, name: "Abstract Collection", nftCount: 12, chain: "Hedera", description: "Modern abstract digital pieces", image: "🎨" },
+    { id: 5, name: "Space Series", nftCount: 6, chain: "Ethereum", description: "Explore the galaxy through art", image: "🚀" },
+    { id: 6, name: "Neon Collection", nftCount: 4, chain: "Solana", description: "Vibrant neon-themed artwork", image: "💎" },
+    { id: 7, name: "Cyber Pack", nftCount: 9, chain: "Ethereum", description: "Futuristic cyberpunk collection", image: "🐺" },
+  ]);
+
+  // Get recent NFTs for preview
+  const recentNFTs = userNFTs.slice(-4);
+  const totalCollections = userCollections.length;
+  const mintedCount = userNFTs.filter(nft => nft.status === 'Minted').length;
+  const pendingCount = userNFTs.filter(nft => nft.status === 'Pending').length;
+
+  const scrollToNFTs = () => {
+    document.getElementById('nft-section')?.scrollIntoView({ behavior: 'smooth' });
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-black via-gray-900 to-black">
@@ -35,7 +57,57 @@ export default function Dashboard() {
       </header>
 
       <div className="max-w-7xl mx-auto px-4 py-8">
-        {/* Top Half - Create Section */}
+        {/* Stats Preview Bar */}
+        <div className="mb-8">
+          <div className="bg-gradient-to-r from-gray-800/40 to-gray-900/40 backdrop-blur-sm border border-white/5 rounded-xl p-4">
+            <div className="flex items-center justify-between">
+              {/* Left - Stats */}
+              <div className="flex items-center space-x-6">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-white">{userNFTs.length}</div>
+                  <div className="text-xs text-gray-400">Total NFTs</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-white">{totalCollections}</div>
+                  <div className="text-xs text-gray-400">Collections</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-green-400">{mintedCount}</div>
+                  <div className="text-xs text-gray-400">Minted</div>
+                </div>
+                {pendingCount > 0 && (
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-yellow-400">{pendingCount}</div>
+                    <div className="text-xs text-gray-400">Pending</div>
+                  </div>
+                )}
+              </div>
+
+              {/* Center - Recent NFTs Preview */}
+              <div className="flex items-center space-x-2">
+                <span className="text-sm text-gray-400 mr-2">Recent:</span>
+                {recentNFTs.map((nft) => (
+                  <div key={nft.id} className="w-10 h-10 bg-gray-800 rounded-lg flex items-center justify-center text-lg hover:scale-110 transition-transform duration-200">
+                    {nft.image}
+                  </div>
+                ))}
+              </div>
+
+              {/* Right - View All Button */}
+              <button 
+                onClick={scrollToNFTs}
+                className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-purple-600/20 to-blue-600/20 hover:from-purple-600/30 hover:to-blue-600/30 text-white rounded-lg border border-white/10 transition-all duration-200 group"
+              >
+                <span className="text-sm">View All</span>
+                <svg className="w-4 h-4 group-hover:translate-y-1 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Create Section */}
         <div className="mb-8">
           <div className="bg-gradient-to-br from-gray-900/80 to-black/80 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
             {/* Tab Navigation */}
@@ -77,6 +149,16 @@ export default function Dashboard() {
                     Choose File
                   </button>
                 </div>
+                {activeTab === 'mint' && (
+                  <div className='mt-6'>
+                    <label className="block text-lg font-semibold text-gray-300 mb-2">Collection</label>
+                    <select className="w-full px-4 py-3 bg-gray-800/50 border border-gray-600 rounded-lg text-white focus:border-purple-500 focus:outline-none">
+                      <option>No Collection</option>
+                      <option>My Art Collection</option>
+                      <option>Digital Assets</option>
+                    </select>
+                  </div>
+                )}
               </div>
 
               {/* Right Side - Metadata */}
@@ -115,17 +197,6 @@ export default function Dashboard() {
                     </select>
                   </div>
 
-                  {activeTab === 'mint' && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-2">Collection (Optional)</label>
-                      <select className="w-full px-4 py-3 bg-gray-800/50 border border-gray-600 rounded-lg text-white focus:border-purple-500 focus:outline-none">
-                        <option>No Collection</option>
-                        <option>My Art Collection</option>
-                        <option>Digital Assets</option>
-                      </select>
-                    </div>
-                  )}
-
                   <button className="w-full py-4 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-bold rounded-lg transition-all duration-200 transform hover:scale-105">
                     {activeTab === 'mint' ? '🚀 Mint NFT' : '📁 Create Collection'}
                   </button>
@@ -135,51 +206,103 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Bottom Half - User's NFTs */}
-        {/* <div className="mb-8">
+        {/* View Section with Tabs */}
+        <div id="nft-section" className="mb-8">
+          {/* View Tab Navigation */}
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-bold text-white">Your NFTs</h2>
-            <div className="text-sm text-gray-400">
-              {userNFTs.length} NFTs
+            <div className="flex space-x-1 bg-black/30 rounded-lg p-1">
+              <button
+                onClick={() => setViewTab('nfts')}
+                className={`py-2 px-4 rounded-md font-medium transition-all duration-200 ${
+                  viewTab === 'nfts'
+                    ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg'
+                    : 'text-gray-400 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                🖼️ Your NFTs ({userNFTs.length})
+              </button>
+              <button
+                onClick={() => setViewTab('collections')}
+                className={`py-2 px-4 rounded-md font-medium transition-all duration-200 ${
+                  viewTab === 'collections'
+                    ? 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-lg'
+                    : 'text-gray-400 hover:text-white hover:bg-white/5'
+                }`}
+              >
+                📁 Collections ({userCollections.length})
+              </button>
+            </div>
+
+            {/* Filter Controls */}
+            <div className="flex items-center space-x-4">
+              <select className="px-3 py-2 bg-gray-800/50 border border-gray-600 rounded-lg text-white text-sm focus:border-purple-500 focus:outline-none">
+                <option>All Chains</option>
+                <option>Ethereum</option>
+                <option>Solana</option>
+                <option>Polygon</option>
+                <option>Hedera</option>
+              </select>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {userNFTs.map((nft) => (
-              <div key={nft.id} className="bg-gradient-to-br from-gray-900/80 to-black/80 backdrop-blur-sm border border-white/10 rounded-xl overflow-hidden hover:border-purple-500/30 transition-all duration-300 group">
-                <div className="aspect-square bg-gray-800 flex items-center justify-center text-6xl group-hover:scale-105 transition-transform duration-300">
-                  {nft.image}
-                </div>
-                <div className="p-4">
-                  <h3 className="font-semibold text-white mb-2 truncate">{nft.name}</h3>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-400">{nft.chain}</span>
-                    <span className={`px-2 py-1 rounded-full text-xs ${
-                      nft.status === 'Minted' 
-                        ? 'bg-green-600/20 text-green-300 border border-green-500/30' 
-                        : 'bg-yellow-600/20 text-yellow-300 border border-yellow-500/30'
-                    }`}>
-                      {nft.status}
-                    </span>
+          {/* NFTs Tab Content */}
+          {viewTab === 'nfts' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              {userNFTs.map((nft) => (
+                <div key={nft.id} className="bg-gradient-to-br from-gray-900/80 to-black/80 backdrop-blur-sm border border-white/10 rounded-xl overflow-hidden hover:border-purple-500/30 transition-all duration-300 group">
+                  <div className="aspect-square bg-gray-800 flex items-center justify-center text-6xl group-hover:scale-105 transition-transform duration-300">
+                    {nft.image}
+                  </div>
+                  <div className="p-4">
+                    <h3 className="font-semibold text-white mb-2 truncate">{nft.name}</h3>
+                    <div className="flex items-center justify-between text-sm mb-2">
+                      <span className="text-gray-400">{nft.chain}</span>
+                      <span className={`px-2 py-1 rounded-full text-xs ${
+                        nft.status === 'Minted' 
+                          ? 'bg-green-600/20 text-green-300 border border-green-500/30' 
+                          : 'bg-yellow-600/20 text-yellow-300 border border-yellow-500/30'
+                      }`}>
+                        {nft.status}
+                      </span>
+                    </div>
+                    <div className="text-xs text-gray-500 truncate">{nft.collection}</div>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        </div> */}
+              ))}
+            </div>
+          )}
 
-        {/* Bottom Navigation Strip */}
-        <div className="fixed bottom-0 left-0 right-0 bg-black/90 backdrop-blur-sm border-t border-white/10 p-4">
-          <div className="max-w-7xl mx-auto flex items-center justify-center space-x-8">
-            <button className="flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-purple-600/20 to-pink-600/20 hover:from-purple-600/30 hover:to-pink-600/30 text-white rounded-lg border border-white/10 transition-all duration-200">
-              <span>🖼️</span>
-              <span>All NFTs</span>
-            </button>
-            <button className="flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-blue-600/20 to-cyan-600/20 hover:from-blue-600/30 hover:to-cyan-600/30 text-white rounded-lg border border-white/10 transition-all duration-200">
-              <span>📚</span>
-              <span>All Collections</span>
-            </button>
-          </div>
+          {/* Collections Tab Content */}
+          {viewTab === 'collections' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {userCollections.map((collection) => (
+                <div key={collection.id} className="bg-gradient-to-br from-gray-900/80 to-black/80 backdrop-blur-sm border border-white/10 rounded-xl overflow-hidden hover:border-blue-500/30 transition-all duration-300 group">
+                  <div className="aspect-video bg-gray-800 flex items-center justify-center text-8xl group-hover:scale-105 transition-transform duration-300">
+                    {collection.image}
+                  </div>
+                  <div className="p-6">
+                    <h3 className="font-bold text-white mb-2 text-lg">{collection.name}</h3>
+                    <p className="text-gray-400 text-sm mb-4 line-clamp-2">{collection.description}</p>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-4">
+                        <div className="text-center">
+                          <div className="text-lg font-bold text-white">{collection.nftCount}</div>
+                          <div className="text-xs text-gray-400">NFTs</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-sm font-medium text-blue-400">{collection.chain}</div>
+                          <div className="text-xs text-gray-400">Chain</div>
+                        </div>
+                      </div>
+                      <button className="px-4 py-2 bg-gradient-to-r from-blue-600/20 to-cyan-600/20 hover:from-blue-600/30 hover:to-cyan-600/30 text-blue-300 rounded-lg border border-blue-500/30 transition-all duration-200 text-sm">
+                        View Collection
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>
