@@ -3,12 +3,25 @@ const { PinataSDK } = require('pinata-web3');
 import { NextRequest, NextResponse } from 'next/server';
 import { TokenMintTransaction, AccountId, TransactionId } from '@hashgraph/sdk';
 import imageProcessor from '@/utils/imageProcessor';
-const { ipfsApiKey, ipfsGatewayUrl } = require('../config/config');
+import { config } from '@/config/config';
+
+// CORS headers
+const corsHeaders = {
+  'Access-Control-Allow-Origin': 'http://localhost:8080',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  'Access-Control-Allow-Credentials': 'true',
+};
 
 const pinata = new PinataSDK({
-  pinataJwt: ipfsApiKey,
-  pinataGateway: ipfsGatewayUrl,
+  pinataJwt: config.pinata.jwt,
+  pinataGateway: config.pinata.gatewayUrl,
 });
+
+// Handle preflight requests
+export async function OPTIONS(request: NextRequest) {
+  return new NextResponse(null, { status: 200, headers: corsHeaders });
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -42,7 +55,7 @@ export async function POST(request: NextRequest) {
         description: nftDetails.description,
         creator: tokenDetails.user.user_name,
         format: 'HIP412@2.0.0',
-        image: `${ipfsGatewayUrl}${imagesHash.IpfsHash}/image.jpg`,
+        image: `${config.pinata.gatewayUrl}${imagesHash.IpfsHash}/image.jpg`,
         checksum: originalImageChecksum,
         type: 'image/png',
         files: [
@@ -50,7 +63,7 @@ export async function POST(request: NextRequest) {
             checksum: originalImageChecksum,
             is_default_file: true,
             type: 'image/png',
-            uri: `${ipfsGatewayUrl}${imagesHash.IpfsHash}/image.jpg`, // Preview Img
+            uri: `${config.pinata.gatewayUrl}${imagesHash.IpfsHash}/image.jpg`, // Preview Img
           },
         ],
         properties: {
@@ -64,15 +77,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
         success: true,
         data: metadataUpload.IpfsHash,
-    });
+    }, { headers: corsHeaders });
   } catch (error) {
     return NextResponse.json(
       { 
         success: false, 
-        error: error || 'Failed to fetch Hedera NFTs',
+        error: error || 'Failed to upload metadata to IPFS',
         data: []
       },
-      { status: 500 }
+      { status: 500, headers: corsHeaders }
     );
   }
 }

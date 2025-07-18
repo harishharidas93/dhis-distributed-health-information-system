@@ -1,4 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { TokenType, PrivateKey, TokenMintTransaction, TransactionId, Timestamp, NftId, PublicKey, AccountId, TokenId, TokenCreateTransaction, TransferTransaction, TokenBurnTransaction, TokenWipeTransaction, TokenDeleteTransaction, TokenPauseTransaction, TokenUnpauseTransaction, TokenFreezeTransaction, TokenUnfreezeTransaction, TokenGrantKycTransaction, TokenRevokeKycTransaction, TokenAssociateTransaction, TokenDissociateTransaction, AccountAllowanceApproveTransaction, AccountAllowanceDeleteTransaction, TokenSupplyType } from '@hashgraph/sdk';
+
+// CORS headers
+const corsHeaders = {
+  'Access-Control-Allow-Origin': 'http://localhost:8080',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  'Access-Control-Allow-Credentials': 'true',
+};
 
 interface NFT {
   id: string;
@@ -18,7 +27,7 @@ interface NFT {
   owner: string;
 }
 
-// Hardcoded Hedera NFT data
+// Hardcoded Hedera NFT data (same as nfts route for consistency)
 const HARDCODED_NFTS: NFT[] = [
   {
     id: "hedera_001",
@@ -36,7 +45,7 @@ const HARDCODED_NFTS: NFT[] = [
       { trait_type: "Power", value: "95" }
     ],
     mintedAt: "2024-01-15T10:30:00Z",
-    owner: "0.0.7654321"
+    owner: "0.0.6359539"
   },
   {
     id: "hedera_002",
@@ -53,7 +62,7 @@ const HARDCODED_NFTS: NFT[] = [
       { trait_type: "Power", value: "88" }
     ],
     mintedAt: "2024-01-16T14:20:00Z",
-    owner: "0.0.7654321"
+    owner: "0.0.6359539"
   },
   {
     id: "hedera_003",
@@ -71,61 +80,31 @@ const HARDCODED_NFTS: NFT[] = [
       { trait_type: "Power", value: "72" }
     ],
     mintedAt: "2024-01-17T09:15:00Z",
-    owner: "0.0.7654321"
-  },
-  {
-    id: "hedera_004",
-    name: "Consensus Dragon",
-    description: "Ancient dragon guardian of consensus",
-    image: "🐉",
-    tokenId: "0.0.1234570",
-    serialNumber: 1,
-    chain: "Hedera",
-    status: "Minted",
-    collection: "Dragon Guardians",
-    attributes: [
-      { trait_type: "Rarity", value: "Mythic" },
-      { trait_type: "Element", value: "Wind" },
-      { trait_type: "Power", value: "99" }
-    ],
-    mintedAt: "2024-01-18T16:45:00Z",
-    owner: "0.0.7654321"
-  },
-  {
-    id: "hedera_005",
-    name: "HBAR Phoenix",
-    description: "Legendary phoenix born from HBAR flames",
-    image: "🔥",
-    tokenId: "0.0.1234571",
-    serialNumber: 1,
-    chain: "Hedera",
-    status: "Minted",
-    attributes: [
-      { trait_type: "Rarity", value: "Legendary" },
-      { trait_type: "Element", value: "Fire" },
-      { trait_type: "Power", value: "97" }
-    ],
-    mintedAt: "2024-01-19T11:30:00Z",
-    owner: "0.0.7654321"
+    owner: "0.0.6359539"
   }
 ];
+
+// Handle preflight requests
+export async function OPTIONS(request: NextRequest) {
+  return new NextResponse(null, { status: 200, headers: corsHeaders });
+}
 
 export async function GET(request: NextRequest) {
   try {
     // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 500));
+    await new Promise(resolve => setTimeout(resolve, 300));
 
     // Get query parameters
     const { searchParams } = new URL(request.url);
-    const owner = searchParams.get('owner');
+    const walletAddress = searchParams.get('walletAddress');
     const status = searchParams.get('status');
     const collection = searchParams.get('collection');
 
     let filteredNFTs = [...HARDCODED_NFTS];
 
     // Apply filters if provided
-    if (owner) {
-      filteredNFTs = filteredNFTs.filter(nft => nft.owner === owner);
+    if (walletAddress) {
+      filteredNFTs = filteredNFTs.filter(nft => nft.owner === walletAddress);
     }
 
     if (status) {
@@ -136,13 +115,33 @@ export async function GET(request: NextRequest) {
       filteredNFTs = filteredNFTs.filter(nft => nft.collection === collection);
     }
 
-    return NextResponse.json({
-      success: true,
-      data: filteredNFTs,
-      total: filteredNFTs.length,
-      chain: 'Hedera'
-    });
+    return NextResponse.json(filteredNFTs, { headers: corsHeaders });
 
+  } catch (error) {
+    return NextResponse.json(
+      { 
+        success: false, 
+        error: error || 'Failed to fetch Hedera NFT',
+        data: []
+      },
+      { status: 500, headers: corsHeaders }
+    );
+  }
+}
+
+export async function PUT(request: NextRequest) {
+  try {
+    const {nftDetails, collectionId, walletAddress} = await request.json(); 
+  const metadatCid = nftDetails.map((nft: any) => Buffer.from(nft.metadata));
+  const mintTx = new TokenMintTransaction().setTokenId(collectionId).setMetadata(metadatCid)
+    .setTransactionId(TransactionId.generate(walletAddress))
+    .setNodeAccountIds([new AccountId(3)])
+    .freeze();
+
+  return NextResponse.json({
+    status: 'success',
+    transaction: mintTx.toBytes(),
+  }, { headers: corsHeaders });
   } catch (error) {
     return NextResponse.json(
       { 
@@ -150,7 +149,7 @@ export async function GET(request: NextRequest) {
         error: error || 'Failed to fetch Hedera NFTs',
         data: []
       },
-      { status: 500 }
+      { status: 500, headers: corsHeaders }
     );
   }
 }
