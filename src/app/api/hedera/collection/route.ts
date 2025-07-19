@@ -87,7 +87,8 @@ export async function GET(request: NextRequest) {
     }
 
     // Filter collections by wallet address (owner)
-    const userCollections = MOCK_COLLECTIONS.filter(collection => collection.owner === walletAddress);
+    const userCollections = [{ id: '0.0.6381137', name: 'Ad' }];
+    // const userCollections = await mirrorNode.fetchTokenInfo(walletAddress); // Adjust as needed to fetch collections
 
     return NextResponse.json(userCollections, { headers: corsHeaders });
 
@@ -173,10 +174,7 @@ export async function PUT(request: NextRequest) {
     tokenCreate.setNodeAccountIds([new AccountId(3)]);
     tokenCreate.freeze();
     
-    return NextResponse.json({
-        status: 'success',
-        transaction: tokenCreate.toBytes(),
-    }, { headers: corsHeaders });
+    return NextResponse.json({transaction: tokenCreate.toBytes()}, { headers: corsHeaders });
     
   } catch (error) {
     console.error('Collection creation error:', error);

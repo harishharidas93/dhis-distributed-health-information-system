@@ -1,5 +1,13 @@
+/* eslint-disable */
 import { NextRequest, NextResponse } from 'next/server';
+import mirrorNode from '@/utils/mirrorNode';
+import axios from 'axios';
+
 import { TokenType, PrivateKey, TokenMintTransaction, TransactionId, Timestamp, NftId, PublicKey, AccountId, TokenId, TokenCreateTransaction, TransferTransaction, TokenBurnTransaction, TokenWipeTransaction, TokenDeleteTransaction, TokenPauseTransaction, TokenUnpauseTransaction, TokenFreezeTransaction, TokenUnfreezeTransaction, TokenGrantKycTransaction, TokenRevokeKycTransaction, TokenAssociateTransaction, TokenDissociateTransaction, AccountAllowanceApproveTransaction, AccountAllowanceDeleteTransaction, TokenSupplyType } from '@hashgraph/sdk';
+
+const { PinataSDK } = require('pinata-web3');
+import imageProcessor from '@/utils/imageProcessor';
+import { config } from '@/config/config';
 
 // CORS headers
 const corsHeaders = {
@@ -8,6 +16,11 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
   'Access-Control-Allow-Credentials': 'true',
 };
+
+const pinata = new PinataSDK({
+  pinataJwt: config.pinata.jwt,
+  pinataGateway: config.pinata.gatewayUrl,
+});
 
 interface NFT {
   id: string;
@@ -91,31 +104,27 @@ export async function OPTIONS(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 300));
-
-    // Get query parameters
     const { searchParams } = new URL(request.url);
     const walletAddress = searchParams.get('walletAddress');
-    const status = searchParams.get('status');
-    const collection = searchParams.get('collection');
-
-    let filteredNFTs = [...HARDCODED_NFTS];
-
-    // Apply filters if provided
-    if (walletAddress) {
-      filteredNFTs = filteredNFTs.filter(nft => nft.owner === walletAddress);
+    
+    const nfts = await mirrorNode.fetchAllNFTs(walletAddress as string); // Example collectionId
+    for (const nft of nfts) {
+      if (nft.metadata) {
+        // Decode base64 metadata to get CID
+        const cid = Buffer.from(nft.metadata, 'base64').toString('utf-8');
+        const metadataUrl = `${config.pinata.gatewayUrl}${cid}`;
+        try {
+          const response = await axios.get(metadataUrl);
+          const meta = response.data;
+          nft.name = meta.name || nft.name;
+          nft.image = meta.image || nft.image;
+          nft.collection = meta.properties?.collection_name || nft.collection;
+        } catch (err) {
+          // Optionally log or handle fetch error
+        }
+      }
     }
-
-    if (status) {
-      filteredNFTs = filteredNFTs.filter(nft => nft.status === status);
-    }
-
-    if (collection) {
-      filteredNFTs = filteredNFTs.filter(nft => nft.collection === collection);
-    }
-
-    return NextResponse.json(filteredNFTs, { headers: corsHeaders });
+    return NextResponse.json(nfts, { headers: corsHeaders });
 
   } catch (error) {
     return NextResponse.json(
@@ -131,17 +140,70 @@ export async function GET(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    const {nftDetails, collectionId, walletAddress} = await request.json(); 
-  const metadatCid = nftDetails.map((nft: any) => Buffer.from(nft.metadata));
-  const mintTx = new TokenMintTransaction().setTokenId(collectionId).setMetadata(metadatCid)
-    .setTransactionId(TransactionId.generate(walletAddress))
+    const formData = await request.formData();
+    
+    const payload = {
+      name: formData.get('name') as string,
+      description: formData.get('description') as string,
+      collectionId: formData.get('collectionId') as string,
+      collectionName: formData.get('collectionName') as string,
+      walletAddress: formData.get('walletAddress') as string,
+      timestamp: formData.get('timestamp') as string,
+    };
+            const file = formData.get('image'); 
+            let imageBuffer;
+            if (file && file instanceof Blob) {
+        const arrayBuffer = await file.arrayBuffer();
+        imageBuffer = Buffer.from(arrayBuffer);
+            } else {
+        return NextResponse.json({
+          success: false,
+          error: 'No file provided or file is not a valid Blob',
+        }, { status: 400 });
+            }
+        //   const imageBuffer = file.buffer;
+          // const originalImageChecksum = imageProcessor.generateChecksum(imageBuffer);
+    
+          // const originialImgBlob = new Blob([imageBuffer], { type: 'image/png' });
+          // const originalImgFile = new File([originialImgBlob], 'image.jpg', { type: 'image/png' });
+    
+          // // Create IPFS hash of Resized Image
+          // const imagesHash = await pinata.upload.file(originalImgFile);
+    
+    
+          // const metaData = {
+          //   name: payload.name,
+          //   description: payload.description,
+          //   creator: payload.walletAddress,
+          //   format: 'HIP412@2.0.0',
+          //   image: `${config.pinata.gatewayUrl}${imagesHash.IpfsHash}`,
+          //   checksum: originalImageChecksum,
+          //   type: 'image/png',
+          //   files: [
+          //     {
+          //       checksum: originalImageChecksum,
+          //       is_default_file: true,
+          //       type: 'image/png',
+          //       uri: `${config.pinata.gatewayUrl}${imagesHash.IpfsHash}`,
+          //     },
+          //   ],
+          //   properties: {
+          //         collection_id: payload.collectionId,
+          //         collection_name: payload.collectionName,
+          //       },
+          // };
+    
+          // const metadataUpload = await pinata.upload.json(metaData);
+          // const metadatCid = metadataUpload.IpfsHash;
+          const metadatCid = 'bafkreicd4grxsau7e4sg4gzqvc4g5k24km5ukfoksd2fvc6clspgl2x7me';
+const metadataBytes = new Uint8Array(Buffer.from(metadatCid)); // Convert CID string to Uint8Array
+
+  const mintTx = new TokenMintTransaction().setTokenId(payload.collectionId).setMetadata([metadataBytes])
+    .setTransactionId(TransactionId.generate(payload.walletAddress))
     .setNodeAccountIds([new AccountId(3)])
     .freeze();
 
-  return NextResponse.json({
-    status: 'success',
-    transaction: mintTx.toBytes(),
-  }, { headers: corsHeaders });
+  return NextResponse.json({transaction: mintTx.toBytes()}, { headers: corsHeaders });
   } catch (error) {
     return NextResponse.json(
       { 

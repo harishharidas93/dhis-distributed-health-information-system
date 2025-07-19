@@ -1,3 +1,4 @@
+/* eslint-disable */
 import axios from 'axios';
 import { AccountInfoQuery } from '@hashgraph/sdk';
 import { hederaClient } from '../services/hedera.client';
@@ -10,8 +11,9 @@ const client = hederaClient();
 const httpsAgent = new https.Agent({
   rejectUnauthorized: false, // This bypasses SSL certificate validation
 });
-const mirrorNodeBaseUrl = config.hedera.mirrorNodeUrl;
+
 const axiosInstance = axios.create({
+  baseURL: config.hedera.mirrorNodeUrl,
   httpsAgent: httpsAgent,
   timeout: 10000,
   headers: {
@@ -21,16 +23,14 @@ const axiosInstance = axios.create({
 });
 
 async function fetchAccountInfo(accountId: string) {
-    console.log(config);
-  const { data } = await axiosInstance.get(`https://testnet.mirrornode.hedera.com/api/v1/accounts/${accountId}`);
+  const { data } = await axiosInstance.get(`/accounts/${accountId}`);
   return data;
 }
 
 async function fetchTokenInfo(collectionId: string) {
   try {
-    const { data } = await axiosInstance.get(`${mirrorNodeBaseUrl}/tokens/${collectionId}`);
+    const { data } = await axiosInstance.get(`/tokens/${collectionId}`);
     return data;
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   } catch (e) {
     return null;
   }
@@ -38,7 +38,7 @@ async function fetchTokenInfo(collectionId: string) {
 
 async function fetchNFTInfo(certificateId: string) {
   const { tokenId: collectionId, serialNumber } = splitcertificateId(certificateId);
-  const { data } = await axiosInstance.get(`${mirrorNodeBaseUrl}/tokens/${collectionId}/nfts/${serialNumber}`);
+  const { data } = await axiosInstance.get(`/tokens/${collectionId}/nfts/${serialNumber}`);
   return data;
 }
 
@@ -46,7 +46,7 @@ async function fetchNftTransactions(certificateId: string, nextLink?: string): P
   const { tokenId: collectionId, serialNumber } = splitcertificateId(certificateId);
   // Fetch data from the API
   const { data } = await axiosInstance.get(
-    nextLink ? nextLink : `${mirrorNodeBaseUrl}/tokens/${collectionId}/nfts/${serialNumber}/transactions`
+    nextLink ? nextLink : `/tokens/${collectionId}/nfts/${serialNumber}/transactions`
   );
 
   let { transactions } = data;
@@ -76,9 +76,9 @@ async function fetchAccountTokenRelations(collectionId: string, accountId: strin
   return matchFound ? tokenInfo : matchFound;
 }
 
-async function fetchAllNFTs(accountId: string, collectionId: string, nextLink?: string): Promise<any[]> {
-  const { data } = await axiosInstance.get(
-    nextLink ? nextLink : `${mirrorNodeBaseUrl}/accounts/${accountId}/nfts?token.id=${collectionId}&order=asc`
+async function fetchAllNFTs(accountId: string, collectionId?: string, nextLink?: string): Promise<any[]> {
+const { data } = await axiosInstance.get(
+    nextLink ? nextLink : `/accounts/${accountId}/nfts?${collectionId ? `token.id=${collectionId}&` : ''}`
   );
 
   // eslint-disable-next-line no-param-reassign
@@ -92,7 +92,7 @@ async function fetchAllNFTs(accountId: string, collectionId: string, nextLink?: 
   }
 
   if (nextLink) {
-    const nextLinkNfts = await fetchAllNFTs(accountId, collectionId, nextLink);
+    const nextLinkNfts = await fetchAllNFTs(accountId, collectionId, nextLink.replace('/api/v1', ''));
 
     nfts = [...nfts, ...nextLinkNfts];
   }
