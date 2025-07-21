@@ -1,11 +1,11 @@
 'use client';
 
 import React, { useState } from 'react';
+import Image from 'next/image';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -33,7 +33,7 @@ import { useMintNFT, useCreateCollection, useSignTransaction, useSubmitTransacti
 const Index = () => {
   const [activeTab, setActiveTab] = useState('mint');
   const [viewTab, setViewTab] = useState('nfts');
-  const { walletAddress, setWalletAddress } = useStore();
+  const { walletAddress, setWalletAddress, blockchainType } = useStore();
 
   // const { walletAddress } = store;
   const router = useRouter();
@@ -56,15 +56,13 @@ const Index = () => {
   const [nftForm, setNftForm] = useState<{
     name: string;
     description: string;
-    blockchain: string;
     collection: string;
     image: File | null;
     imagePreview: string | null;
-    newCollectionName?: string; // Added for new collection name
+    newCollectionName?: string;
   }>({
     name: '',
     description: '',
-    blockchain: '',
     collection: '',
     image: null,
     imagePreview: null,
@@ -128,7 +126,7 @@ const Index = () => {
   // Handle NFT minting with real API
   const handleMintNFT = async () => {
     // Validate form
-    if (!nftForm.name || !nftForm.description || !nftForm.blockchain) {
+    if (!nftForm.name || !nftForm.collection || !nftForm.description) {
       toast({
         title: "Missing fields",
         description: "Please fill in all required fields",
@@ -136,21 +134,21 @@ const Index = () => {
       });
       return;
     }
-    if (!nftForm.newCollectionName) {
-      toast({
-        title: "Missing collection name",
-        description: "Please enter a name for the new collection.",
-        variant: "destructive",
-      });
-      return;
-    }
 
     let collectionObj: { id: string; name: string } | null = null;
     if (nftForm.collection === "__new__" || userCollections.length === 0) {
+      if (!nftForm.newCollectionName) {
+        toast({
+          title: "Missing collection name",
+          description: "Please enter a name for the new collection.",
+          variant: "destructive",
+        });
+        return;
+      }
       const newCollection = await createCollectionMutation.mutateAsync({
         name: nftForm.newCollectionName,
         description: '', // No description for new collections
-        blockchain: nftForm.blockchain,
+        blockchain: blockchainType || 'hedera',
         walletAddress: walletAddress,
         timestamp: new Date().toISOString()
       });
@@ -167,7 +165,7 @@ const Index = () => {
       await mintNFTMutation.mutateAsync({
         name: nftForm.name,
         description: nftForm.description,
-        blockchain: nftForm.blockchain,
+        blockchain: blockchainType || 'hedera',
         collection: collectionObj,
         image: nftForm.image || undefined,
         walletAddress: walletAddress,
@@ -178,7 +176,6 @@ const Index = () => {
       setNftForm({
         name: '',
         description: '',
-        blockchain: '',
         collection: '',
         image: null,
         imagePreview: null,
@@ -187,7 +184,7 @@ const Index = () => {
 
       toast({
         title: "NFT minted successfully! 🎉",
-        description: `${nftForm.name} has been minted on ${nftForm.blockchain}`,
+        description: `${nftForm.name} has been minted on ${collectionObj?.name || 'a new collection'}`,
       });
     } catch (error: any) {
       toast({
@@ -411,30 +408,12 @@ const Index = () => {
                     </div>
                     <div>
                       <label className="block text-sm font-medium mb-2">Description</label>
-                      <Textarea
+                      <Input
                         value={nftForm.description}
                         onChange={e => setNftForm(prev => ({ ...prev, description: e.target.value }))}
-                        rows={3}
                         placeholder="Describe your NFT..."
-                        className="bg-muted/50 resize-none"
+                        className="bg-muted/50"
                       />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium mb-2">Blockchain</label>
-                      <Select
-                        value={nftForm.blockchain}
-                        onValueChange={value => setNftForm(prev => ({ ...prev, blockchain: value }))}
-                      >
-                        <SelectTrigger className="bg-muted/50">
-                          <SelectValue placeholder="Select blockchain" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="ethereum">Ethereum</SelectItem>
-                          <SelectItem value="solana">Solana</SelectItem>
-                          <SelectItem value="polygon">Polygon</SelectItem>
-                          <SelectItem value="hedera">Hedera</SelectItem>
-                        </SelectContent>
-                      </Select>
                     </div>
                     <Button 
                       onClick={handleMintNFT}
@@ -498,7 +477,11 @@ const Index = () => {
                 {userNFTs.map((nft) => (
                   <Card key={nft.id} className="card-gradient border hover:border-primary/50 transition-all duration-300 group overflow-hidden">
                     <div className="aspect-square bg-muted flex items-center justify-center text-6xl group-hover:scale-105 transition-transform duration-300">
-                      <img src={nft.image} alt={nft.name} />
+                      {nft.image || nft.imageUrl ? (
+                        <Image src={nft.image || nft.imageUrl} alt={nft.name} width={200} height={200} className="object-cover w-full h-full" />
+                      ) : (
+                        null
+                      )}
                     </div>
                     <CardContent className="p-4">
                       <h3 className="font-semibold mb-2 truncate">{nft.name}</h3>
@@ -521,11 +504,14 @@ const Index = () => {
                 {userCollections.map((collection) => (
                   <Card key={collection.id} className="card-gradient border hover:border-primary/50 transition-all duration-300 group overflow-hidden">
                     <div className="aspect-video bg-muted flex items-center justify-center text-8xl group-hover:scale-105 transition-transform duration-300">
-                      {collection.image || collection.imageUrl || "📁"}
+                      {collection.image || collection.imageUrl ? (
+                        <Image src={collection.image || collection.imageUrl} alt={collection.name} width={320} height={180} className="object-cover w-full h-full" />
+                      ) : (
+                        "📁"
+                      )}
                     </div>
                     <CardContent className="p-6">
                       <h3 className="font-bold text-xl mb-2">{collection.name}</h3>
-                      <p className="text-muted-foreground text-sm mb-4 line-clamp-2">{collection.description}</p>
                       <div className="flex items-center justify-between">
                         <div className="flex items-center space-x-4">
                           <div className="text-center">
@@ -533,13 +519,10 @@ const Index = () => {
                             <div className="text-xs text-muted-foreground">NFTs</div>
                           </div>
                           <div className="text-center">
-                            <Badge variant="outline">{collection.chain || collection.blockchain}</Badge>
+                            <Badge variant="outline">Hedera</Badge>
                             <div className="text-xs text-muted-foreground mt-1">Chain</div>
                           </div>
                         </div>
-                        {/* <Button className="button-gradient-secondary" size="sm">
-                          View Collection
-                        </Button> */}
                       </div>
                     </CardContent>
                   </Card>
