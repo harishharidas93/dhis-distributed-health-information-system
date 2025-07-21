@@ -17,6 +17,7 @@ export const config = {
   // API Configuration
   api: {
     baseUrl: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000',
+    mockApiCalls: process.env.MOCK_API_CALLS || null,
   }
 };
 
