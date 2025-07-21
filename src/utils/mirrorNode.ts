@@ -1,12 +1,12 @@
 /* eslint-disable */
 import axios from 'axios';
 import { AccountInfoQuery } from '@hashgraph/sdk';
-import { hederaClient } from '../services/hedera.client';
+// import { hederaClient } from '../services/hedera.client';
 import {config} from '@/config/config';
 import { splitcertificateId } from '../utils/nftUtil';
 import https from 'https';
 
-const client = hederaClient();
+// const client = hederaClient();
 
 const httpsAgent = new https.Agent({
   rejectUnauthorized: false, // This bypasses SSL certificate validation
@@ -90,25 +90,25 @@ async function fetchNftTransactions(certificateId: string, nextLink?: string): P
   return transactions;
 }
 
-async function fetchAccountTokenRelations(collectionId: string, accountId: string) {
-  if (config.api.mockApiCalls) {
-    return [
-      { token_id: collectionId, serial_number: 1, owner_account_id: accountId, metadata: "mocked-metadata" }
-    ];
-  }
-  const info = await new AccountInfoQuery().setAccountId(accountId).execute(client);
-  const tokenInfo: any = {};
-  let matchFound = false;
-  // eslint-disable-next-line no-restricted-syntax, no-unused-vars
-  for (const [token, relationship] of info.tokenRelationships.__map.entries()) {
-    if (token.toString() === collectionId) {
-      matchFound = true;
-      tokenInfo.freeze_status = relationship.isFrozen ? 'FROZEN' : 'UNFROZEN';
-      tokenInfo.kyc_status = relationship.isKycGranted ? 'NOT_APPLICABLE' : 'UNFROZEN';
-    }
-  }
-  return matchFound ? tokenInfo : matchFound;
-}
+// async function fetchAccountTokenRelations(collectionId: string, accountId: string) {
+//   if (config.api.mockApiCalls) {
+//     return [
+//       { token_id: collectionId, serial_number: 1, owner_account_id: accountId, metadata: "mocked-metadata" }
+//     ];
+//   }
+//   const info = await new AccountInfoQuery().setAccountId(accountId).execute(client);
+//   const tokenInfo: any = {};
+//   let matchFound = false;
+//   // eslint-disable-next-line no-restricted-syntax, no-unused-vars
+//   for (const [token, relationship] of info.tokenRelationships.__map.entries()) {
+//     if (token.toString() === collectionId) {
+//       matchFound = true;
+//       tokenInfo.freeze_status = relationship.isFrozen ? 'FROZEN' : 'UNFROZEN';
+//       tokenInfo.kyc_status = relationship.isKycGranted ? 'NOT_APPLICABLE' : 'UNFROZEN';
+//     }
+//   }
+//   return matchFound ? tokenInfo : matchFound;
+// }
 
 async function fetchAllNFTs(accountId: string, collectionId?: string, nextLink?: string): Promise<any[]> {
   if (config.api.mockApiCalls) {
@@ -144,7 +144,7 @@ const exportedFunctions = {
   fetchTokenInfo,
   fetchNFTInfo,
   fetchNftTransactions,
-  fetchAccountTokenRelations,
+  // fetchAccountTokenRelations,
   fetchAllNFTs,
 };
 

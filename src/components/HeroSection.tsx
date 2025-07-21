@@ -11,7 +11,7 @@ import { useRouter } from "next/navigation";
 
 export const HeroSection = () => {
   const [isWalletModalOpen, setIsWalletModalOpen] = useState(false);
-  const { walletAddress, setWalletAddress } = useStore();
+  const { walletAddress } = useStore();
   const router = useRouter();
 
   useEffect(() => {
@@ -25,8 +25,8 @@ export const HeroSection = () => {
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
       {/* Futuristic Background */}
       <div 
-        className="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-40"
-        style={{ backgroundImage: `url(${futuristicBg})` }}
+        className="futuristic-bg-img absolute inset-0 bg-cover bg-center bg-no-repeat opacity-40"
+        style={{ backgroundImage: `url(${futuristicBg.src})` }}
       />
       
       {/* Gradient Overlay */}

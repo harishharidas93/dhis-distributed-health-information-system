@@ -2,14 +2,14 @@ import { AccountId, LedgerId, Transaction } from '@hashgraph/sdk';
 // import { HashConnect } from 'hashconnect';
 // import axios from '../../api/axiosWithAuth';
 
-const appMetadata = {
-  name: 'Dgverse',
-  description: 'Mint and manage your certificates',
-  icons: ['https://www.hashpack.app/img/logo.svg'],
-  url: 'www.mint-bridgse.com',
-};
+// const appMetadata = {
+//   name: 'Dgverse',
+//   description: 'Mint and manage your certificates',
+//   icons: ['https://www.hashpack.app/img/logo.svg'],
+//   url: 'www.mint-bridgse.com',
+// };
 
-const projectId = 'bfa190dbe93fcf30377b932b31129d05';
+// const projectId = 'bfa190dbe93fcf30377b932b31129d05';
 
 let hc: any = null;
 let hcInitPromise: Promise<void> | null = null;
@@ -47,6 +47,7 @@ export const getInitPromise = async () => {
 
 // export const hc = new HashConnect(LedgerId.fromString('testnet'), projectId, appMetadata, true);
 export const getConnectedAccountIds = async () => {
+  console.log('Fetching connected account IDs...');
   await getHashConnect();
   return hc.connectedAccountIds;
 };
