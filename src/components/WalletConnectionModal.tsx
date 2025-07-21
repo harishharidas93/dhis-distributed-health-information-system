@@ -12,7 +12,7 @@ import { Wallet, CheckCircle, ArrowRight } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
 import { useStore } from '@/store/store';
-import { getConnectedAccountIds, getHashConnect, getInitPromise } from '@/services/hashconnect';
+import { getConnectedAccountIds, getHashConnect } from '@/services/hashconnect';
 
 const wallets = [
   { name: "MetaMask", users: "30M+", color: "from-orange-500 to-yellow-500" },
@@ -29,13 +29,13 @@ interface WalletConnectionModalProps {
 export const WalletConnectionModal = ({ open, onOpenChange }: WalletConnectionModalProps) => {
   const router = useRouter();
   const { toast } = useToast();
-  const { walletAddress, setWalletAddress } = useStore();
+  const { walletAddress } = useStore();
   const isWalletConnected = !!walletAddress;
   
   const handleWalletConnection = async () => {
     const hc = await getHashConnect();
     // TODO: may not be needed, checks if hc is already initialized
-    await getInitPromise();
+    // await getInitPromise();
     if (isWalletConnected) {
       const connectedAccountIds = await getConnectedAccountIds();
       if (connectedAccountIds.length > 0) {

@@ -5,9 +5,11 @@ interface StoreState {
   user: any;
   walletAddress: string;
   accessToken: string;
+  blockchainType: string;
   setWalletAddress: (address: string) => void;
   setUser: (user: any) => void;
   setAccessToken: (token: string) => void;
+  setBlockchainType: (type: string) => void;
 }
 
 export const useStore = create<StoreState>()(
@@ -16,9 +18,11 @@ export const useStore = create<StoreState>()(
       user: null,
       walletAddress: '',
       accessToken: '',
+      blockchainType: '',
       setWalletAddress: (address) => set({ walletAddress: address }),
       setUser: (user) => set({ user }),
       setAccessToken: (token) => set({ accessToken: token }),
+      setBlockchainType: (type) => set({ blockchainType: type }),
     }),
     {
       name: 'mint-bridge-store', // localStorage key

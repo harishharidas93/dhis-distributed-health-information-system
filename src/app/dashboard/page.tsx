@@ -4,7 +4,6 @@ import React, { useState } from 'react';
 import Image from 'next/image';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
@@ -14,12 +13,9 @@ import {
   Wallet, 
   Upload, 
   Image as ImageIcon, 
-  Folder, 
-  Sparkles, 
   TrendingUp, 
   Delete, 
   CheckCircle, 
-  Filter,
   ArrowDown,
   Zap,
   Loader2,
@@ -28,11 +24,9 @@ import {
 import { useStore } from '@/store/store';
 import { getHashConnect } from '@/services/hashconnect';
 import { useRouter } from "next/navigation";
-import { useMintNFT, useCreateCollection, useSignTransaction, useSubmitTransaction, useNFTs, useCollections } from '@/services/nft.service';
+import { useMintNFT, useCreateCollection, useNFTs, useCollections } from '@/services/nft.service';
 
 const Index = () => {
-  const [activeTab, setActiveTab] = useState('mint');
-  const [viewTab, setViewTab] = useState('nfts');
   const { walletAddress, setWalletAddress, blockchainType } = useStore();
 
   // const { walletAddress } = store;
@@ -41,16 +35,13 @@ const Index = () => {
   // React Query hooks
   const mintNFTMutation = useMintNFT();
   const createCollectionMutation = useCreateCollection();
-  const signTransactionMutation = useSignTransaction();
-  const submitTransactionMutation = useSubmitTransaction();
   
   // Fetch data with react-query
   const { data: userNFTs = [] } = useNFTs(walletAddress);
   const { data: userCollections = [] } = useCollections(walletAddress);
 
   // Loading state
-  const isLoading = mintNFTMutation.isPending || createCollectionMutation.isPending || 
-                   signTransactionMutation.isPending || submitTransactionMutation.isPending;
+  const isLoading = mintNFTMutation.isPending || createCollectionMutation.isPending;
 
   // Form states
   const [nftForm, setNftForm] = useState<{
@@ -72,7 +63,6 @@ const Index = () => {
   // Calculate stats from API data
   const recentNFTs = userNFTs.slice(-4);
   const totalCollections = userCollections.length;
-  const mintedCount = userNFTs.length;
 
   // File upload handler (for NFTs only)
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -241,24 +231,19 @@ const Index = () => {
               {/* Left - Stats */}
               <div className="flex items-center space-x-8">
                 <div className="text-center">
-                  <div className="text-3xl font-bold gradient-text">{userNFTs.length}</div>
-                  <div className="text-sm text-muted-foreground">Total NFTs</div>
-                </div>
-                <Separator orientation="vertical" className="h-12" />
-                <div className="text-center">
                   <div className="text-3xl font-bold gradient-text">{totalCollections}</div>
                   <div className="text-sm text-muted-foreground">Collections</div>
                 </div>
                 <Separator orientation="vertical" className="h-12" />
                 <div className="text-center">
-                  <div className="text-3xl font-bold text-green-400">{mintedCount}</div>
-                  <div className="text-sm text-muted-foreground">Minted</div>
+                  <div className="text-3xl font-bold text-green-400">{userNFTs.length}</div>
+                  <div className="text-sm text-muted-foreground">Total NFTs</div>
                 </div>
               </div>
 
               {/* Center - Recent NFTs Preview */}
               <div className="flex items-center space-x-4">
-                <span className="text-sm text-muted-foreground">Recent:</span>
+                {recentNFTs.length > 0 ? <span className="text-sm text-muted-foreground">Recent:</span> : <span className="text-sm text-muted-foreground">No Recent Activity</span>}
                 <div className="flex items-center space-x-2">
                   {recentNFTs.map((nft) => (
                     <div key={nft.id} className="w-12 h-12 bg-muted rounded-xl flex items-center justify-center text-xl hover:scale-110 transition-transform duration-200 border">
@@ -285,251 +270,177 @@ const Index = () => {
         {/* Create Section */}
         <Card className="card-gradient border">
           <CardContent className="p-6">
-            <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <TabsList className="grid w-full grid-cols-1 mb-8 h-12">
-                <TabsTrigger value="mint" className="text-base font-medium">
-                  <Sparkles className="w-4 h-4 mr-2" />
-                  Mint NFT
-                </TabsTrigger>
-              </TabsList>
-
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                {/* Left Side - Image Upload (NFT only) */}
-                <div className="space-y-6">
-                  <div>
-                    <h3 className="text-xl font-semibold mb-4">Upload NFT Image</h3>
-                    <Card className="border-2 border-dashed border-muted-foreground/30 hover:border-primary/50 transition-colors cursor-pointer card-gradient">
-                      <CardContent className="p-8 text-center">
-                        {nftForm.imagePreview ? (
-                          <div className="relative">
-                            <img 
-                              src={nftForm.imagePreview} 
-                              alt="Preview" 
-                              className="w-full h-48 object-cover rounded-lg mb-4"
-                            />
-                            <Button
-                              onClick={clearNFTImage}
-                              variant="outline"
-                              size="sm"
-                              className="absolute top-2 right-2 bg-white/80 hover:bg-white"
-                            >
-                              <X className="w-4 h-4" />
-                            </Button>
-                          </div>
-                        ) : (
-                          <>
-                            <Upload className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
-                            <p className="text-lg mb-2">Drag & drop your image here</p>
-                            <p className="text-muted-foreground text-sm mb-4">PNG, JPG, GIF up to 10MB</p>
-                          </>
-                        )}
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={handleFileUpload}
-                          className="hidden"
-                          id="file-upload-nft"
-                        />
-                        <label htmlFor="file-upload-nft">
-                          <Button className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white" asChild>
-                            <div>
-                              <ImageIcon className="w-4 h-4 mr-2" />
-                              Choose File
-                            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              {/* Left Side - Image Upload (NFT only) */}
+              <div className="space-y-6">
+                <div>
+                  <h3 className="text-xl font-semibold mb-4">Upload NFT Image</h3>
+                  <Card className="border-2 border-dashed border-muted-foreground/30 hover:border-primary/50 transition-colors cursor-pointer card-gradient">
+                    <CardContent className="p-8 text-center">
+                      {nftForm.imagePreview ? (
+                        <div className="relative">
+                          <Image src={nftForm.imagePreview} width={300} height={300} alt="Preview" className="w-full h-48 object-cover rounded-lg mb-4" />
+                          <Button
+                            onClick={clearNFTImage}
+                            variant="outline"
+                            size="sm"
+                            className="absolute top-2 right-2 bg-white/80 hover:bg-white"
+                          >
+                            <X className="w-4 h-4" />
                           </Button>
-                        </label>
-                      </CardContent>
-                    </Card>
-                  </div>
+                        </div>
+                      ) : (
+                        <>
+                          <Upload className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
+                          <p className="text-lg mb-2">Drag & drop your image here</p>
+                          <p className="text-muted-foreground text-sm mb-4">PNG, JPG, GIF up to 10MB</p>
+                        </>
+                      )}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleFileUpload}
+                        className="hidden"
+                        id="file-upload-nft"
+                      />
+                      <label htmlFor="file-upload-nft">
+                        <Button className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white" asChild>
+                          <div>
+                            <ImageIcon className="w-4 h-4 mr-2" />
+                            Choose File
+                          </div>
+                        </Button>
+                      </label>
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
 
-                  {/* Collection selection/creation logic */}
+              {/* Metadata Section */}
+              <div className="space-y-6">
+                <h3 className="text-xl font-semibold">NFT Details</h3>
+                {/* Collection selection/creation logic */}
+                <div>
+                  <label className="block text-sm font-medium mb-2">Collection</label>
+                  {userCollections.length === 0 ? (
+                    <>
+                      <Input
+                        value={nftForm.collection}
+                        onChange={e => setNftForm(prev => ({ ...prev, collection: e.target.value }))}
+                        placeholder="Enter new collection name..."
+                        className="bg-muted/50"
+                      />
+                      <p className="text-sm text-muted-foreground mt-2">
+                        No collections found. A new collection will be created before minting your NFT.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <Select
+                        value={nftForm.collection}
+                        onValueChange={value => setNftForm(prev => ({ ...prev, collection: value }))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a collection" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__new__">Create New Collection</SelectItem>
+                          {userCollections.map(collection => (
+                            <SelectItem key={collection.id} value={collection.id}>
+                              {collection.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {nftForm.collection === "__new__" && (
+                        <>
+                          <Input
+                            value={nftForm.newCollectionName || ''}
+                            onChange={e => setNftForm(prev => ({ ...prev, newCollectionName: e.target.value }))}
+                            placeholder="Enter new collection name..."
+                            className="bg-muted/50 mt-2"
+                          />
+                          <p className="text-sm text-muted-foreground mt-2">
+                            A new collection will be created before minting your NFT.
+                          </p>
+                        </>
+                      )}
+                    </>
+                  )}
+                </div>
+                <div className="space-y-4">
                   <div>
-                    <label className="block text-lg font-semibold mb-2">Collection</label>
-                    {userCollections.length === 0 ? (
+                    <label className="block text-sm font-medium mb-2">NFT Name</label>
+                    <Input
+                      value={nftForm.name}
+                      onChange={e => setNftForm(prev => ({ ...prev, name: e.target.value }))}
+                      placeholder="Enter NFT name..."
+                      className="bg-muted/50"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Description</label>
+                    <Input
+                      value={nftForm.description}
+                      onChange={e => setNftForm(prev => ({ ...prev, description: e.target.value }))}
+                      placeholder="Describe your NFT..."
+                      className="bg-muted/50"
+                    />
+                  </div>
+                  <Button 
+                    onClick={handleMintNFT}
+                    className="w-full button-gradient glow-effect"
+                    size="lg"
+                    disabled={isLoading}
+                  >
+                    {isLoading ? (
                       <>
-                        <Input
-                          value={nftForm.collection}
-                          onChange={e => setNftForm(prev => ({ ...prev, collection: e.target.value }))}
-                          placeholder="Enter new collection name..."
-                          className="bg-muted/50"
-                        />
-                        <p className="text-sm text-muted-foreground mt-2">
-                          No collections found. A new collection will be created before minting your NFT.
-                        </p>
+                        <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                        Processing...
                       </>
                     ) : (
                       <>
-                        <Select
-                          value={nftForm.collection}
-                          onValueChange={value => setNftForm(prev => ({ ...prev, collection: value }))}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select a collection" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="__new__">Create New Collection</SelectItem>
-                            {userCollections.map(collection => (
-                              <SelectItem key={collection.id} value={collection.id}>
-                                {collection.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        {nftForm.collection === "__new__" && (
-                          <>
-                            <Input
-                              value={nftForm.newCollectionName || ''}
-                              onChange={e => setNftForm(prev => ({ ...prev, newCollectionName: e.target.value }))}
-                              placeholder="Enter new collection name..."
-                              className="bg-muted/50 mt-2"
-                            />
-                            <p className="text-sm text-muted-foreground mt-2">
-                              A new collection will be created before minting your NFT.
-                            </p>
-                          </>
-                        )}
+                        <Zap className="w-5 h-5 mr-2" />
+                        Mint NFT
                       </>
                     )}
-                  </div>
-                </div>
-
-                {/* Metadata Section */}
-                <div className="space-y-6">
-                  <h3 className="text-xl font-semibold">NFT Details</h3>
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium mb-2">NFT Name</label>
-                      <Input
-                        value={nftForm.name}
-                        onChange={e => setNftForm(prev => ({ ...prev, name: e.target.value }))}
-                        placeholder="Enter NFT name..."
-                        className="bg-muted/50"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium mb-2">Description</label>
-                      <Input
-                        value={nftForm.description}
-                        onChange={e => setNftForm(prev => ({ ...prev, description: e.target.value }))}
-                        placeholder="Describe your NFT..."
-                        className="bg-muted/50"
-                      />
-                    </div>
-                    <Button 
-                      onClick={handleMintNFT}
-                      className="w-full button-gradient glow-effect"
-                      size="lg"
-                      disabled={isLoading}
-                    >
-                      {isLoading ? (
-                        <>
-                          <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                          Processing...
-                        </>
-                      ) : (
-                        <>
-                          <Zap className="w-5 h-5 mr-2" />
-                          Mint NFT
-                        </>
-                      )}
-                    </Button>
-                  </div>
+                  </Button>
                 </div>
               </div>
-            </Tabs>
+            </div>
           </CardContent>
         </Card>
 
         {/* View Section with Tabs */}
         <div id="nft-section">
-          <Tabs value={viewTab} onValueChange={setViewTab}>
-            <div className="flex items-center justify-between mb-6">
-              <TabsList className='h-12'>
-                <TabsTrigger value="nfts" className="text-base">
-                  <ImageIcon className="w-4 h-4 mr-2" />
-                  Your NFTs ({userNFTs.length})
-                </TabsTrigger>
-                <TabsTrigger value="collections" className="text-base">
-                  <Folder className="w-4 h-4 mr-2" />
-                  Collections ({userCollections.length})
-                </TabsTrigger>
-              </TabsList>
-
-              <div className="flex items-center space-x-4">
-                <Select>
-                  <SelectTrigger className="w-[160px]">
-                    <Filter className="w-4 h-4 mr-2" />
-                    <SelectValue placeholder="All Chains" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Chains</SelectItem>
-                    <SelectItem value="ethereum">Ethereum</SelectItem>
-                    <SelectItem value="solana">Solana</SelectItem>
-                    <SelectItem value="polygon">Polygon</SelectItem>
-                    <SelectItem value="hedera">Hedera</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            <div className="flex items-center mb-4 text-lg font-semibold">
+              <ImageIcon className="w-4 h-4 mr-2" />
+              Your NFTs ({userNFTs.length})
             </div>
-
-            <TabsContent value="nfts">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {userNFTs.map((nft) => (
-                  <Card key={nft.id} className="card-gradient border hover:border-primary/50 transition-all duration-300 group overflow-hidden">
-                    <div className="aspect-square bg-muted flex items-center justify-center text-6xl group-hover:scale-105 transition-transform duration-300">
-                      {nft.image || nft.imageUrl ? (
-                        <Image src={nft.image || nft.imageUrl} alt={nft.name} width={200} height={200} className="object-cover w-full h-full" />
-                      ) : (
-                        null
-                      )}
-                    </div>
-                    <CardContent className="p-4">
-                      <h3 className="font-semibold mb-2 truncate">{nft.name}</h3>
-                      <div className="flex items-center justify-between text-sm mb-2">
-                        <Badge variant="outline">Hedera</Badge>
-                        <Badge className={!nft.deleted ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-400'}>
-                          {!nft.deleted ? <CheckCircle className="w-3 h-3 mr-1" /> : <Delete className="w-3 h-3 mr-1" />}
-                          {nft.deleted ? 'Deleted' : 'Active'}
-                        </Badge>
-                      </div>
-                      <div className="text-xs text-muted-foreground truncate">{nft.collection}</div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </TabsContent>
-
-            <TabsContent value="collections">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {userCollections.map((collection) => (
-                  <Card key={collection.id} className="card-gradient border hover:border-primary/50 transition-all duration-300 group overflow-hidden">
-                    <div className="aspect-video bg-muted flex items-center justify-center text-8xl group-hover:scale-105 transition-transform duration-300">
-                      {collection.image || collection.imageUrl ? (
-                        <Image src={collection.image || collection.imageUrl} alt={collection.name} width={320} height={180} className="object-cover w-full h-full" />
-                      ) : (
-                        "📁"
-                      )}
-                    </div>
-                    <CardContent className="p-6">
-                      <h3 className="font-bold text-xl mb-2">{collection.name}</h3>
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-4">
-                          <div className="text-center">
-                            <div className="text-lg font-bold gradient-text">{collection.nftCount}</div>
-                            <div className="text-xs text-muted-foreground">NFTs</div>
-                          </div>
-                          <div className="text-center">
-                            <Badge variant="outline">Hedera</Badge>
-                            <div className="text-xs text-muted-foreground mt-1">Chain</div>
-                          </div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </TabsContent>
-          </Tabs>
+            {userNFTs.map((nft) => (
+              <Card key={nft.id} className="card-gradient border hover:border-primary/50 transition-all duration-300 group overflow-hidden">
+                <div className="aspect-square bg-muted flex items-center justify-center text-6xl group-hover:scale-105 transition-transform duration-300">
+                  {nft.image || nft.imageUrl ? (
+                    <Image src={nft.image || nft.imageUrl} alt={nft.name} width={200} height={200} className="object-cover w-full h-full" />
+                  ) : (
+                    null
+                  )}
+                </div>
+                <CardContent className="p-4">
+                  <h3 className="font-semibold mb-2 truncate">{nft.name}</h3>
+                  <div className="flex items-center justify-between text-sm mb-2">
+                    <Badge variant="outline">Hedera</Badge>
+                    <Badge className={!nft.deleted ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-400'}>
+                      {!nft.deleted ? <CheckCircle className="w-3 h-3 mr-1" /> : <Delete className="w-3 h-3 mr-1" />}
+                      {nft.deleted ? 'Deleted' : 'Active'}
+                    </Badge>
+                  </div>
+                  <div className="text-xs text-muted-foreground truncate">{nft.collection}</div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
         </div>
       </div>
     </div>

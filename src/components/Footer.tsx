@@ -7,9 +7,7 @@ import {
   Mail, 
   Heart,
   Zap,
-  Globe,
-  Book
-} from "lucide-react";
+  Globe} from "lucide-react";
 
 const socialLinks = [
   { icon: Github, label: "GitHub", href: "#" },

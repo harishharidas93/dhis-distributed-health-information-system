@@ -3,7 +3,6 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import HashConnectClient from "@/services/hashConnect.client";
 import QueryProvider from '@/components/QueryProvider';
 
@@ -20,7 +19,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Mint Brdige | Home",
+  title: "Mint Bridge | Home",
   description: "One minting platform, bridging across chains and wallets",
 };
 

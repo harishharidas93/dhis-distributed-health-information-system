@@ -203,16 +203,3 @@ export const useCreateCollection = () => {
     },
   });
 };
-
-export const useSubmitTransaction = () => {
-  return useMutation({
-    mutationFn: nftAPI.submitTransaction,
-  });
-};
-
-// Simplified hook for backward compatibility
-export const useSignTransaction = () => {
-  return useMutation({
-    mutationFn: nftAPI.submitTransaction, // Using submit transaction as it handles the full flow
-  });
-};
