@@ -3,6 +3,7 @@ import { apiClient, API_CONFIG } from '@/lib/api';
 import { Transaction } from '@hashgraph/sdk';
 import { Buffer } from 'buffer';
 import { executeTransaction } from './hashconnect';
+import { toast } from '@/components/ui/use-toast';
 
 // Types
 export interface NFTData {
@@ -17,7 +18,6 @@ export interface NFTData {
 
 export interface CollectionData {
   name: string;
-  description: string;
   blockchain: string;
   image?: File;
   walletAddress: string;
@@ -35,14 +35,12 @@ export interface NFTResponse {
   id: string;
   name: string;
   description: string;
-  blockchain: string;
   collection: string;
-  imageUrl: string;
-  image?: string; // For backward compatibility with UI
-  chain?: string; // For backward compatibility with UI
-  transactionHash: string;
+  imageUrl?: string;
+  transactionHash?: string;
   deleted: boolean;
   createdAt: string;
+  token_id?: string;
 }
 
 export interface CollectionResponse {
@@ -51,8 +49,6 @@ export interface CollectionResponse {
   description: string;
   blockchain: string;
   imageUrl: string;
-  image?: string; // For backward compatibility with UI
-  chain?: string; // For backward compatibility with UI
   nftCount: number;
   transactionHash: string;
   createdAt: string;
@@ -70,19 +66,17 @@ export const QUERY_KEYS = {
 // API Functions
 export const nftAPI = {
   // Mint NFT
-  mintNFT: async (nftData: NFTData): Promise<NFTResponse> => {
+  mintNFT: async (nftData: NFTData): Promise<{ serial: string; nftReceipt: any }> => {
     const formData = new FormData();
     formData.append('name', nftData.name);
     formData.append('description', nftData.description);
     formData.append('blockchain', nftData.blockchain);
     formData.append('walletAddress', nftData.walletAddress);
     formData.append('timestamp', nftData.timestamp);
-    console.log(nftData.collection);
     if (nftData.collection) {
       formData.append('collectionId', nftData.collection.id);
       formData.append('collectionName', nftData.collection.name);
     }
-    
     if (nftData.image) {
       formData.append('image', nftData.image);
     }
@@ -92,10 +86,16 @@ export const nftAPI = {
         'Content-Type': 'multipart/form-data',
       },
     });
-    
-    const transaction = Transaction.fromBytes(Buffer.from(response.data.transaction, 'hex'))
-    await executeTransaction(nftData.walletAddress, transaction);
-    return response.data;
+    const transaction = Transaction.fromBytes(Buffer.from(response.data.transaction, 'hex'));
+    toast({ title: 'Minting NFT...', description: 'Please sign the mint transaction in your wallet.' });
+    const nftReceipt = await executeTransaction(nftData.walletAddress, transaction);
+    if (nftReceipt?.status?.toString() !== 'SUCCESS') {
+      throw new Error(nftReceipt.error?.response?.data?.message || nftReceipt.error?.message || 'Error occurred while minting NFT');
+    }
+    const serialNumbers = nftReceipt.serials?.map((serial: { toString: () => any }) => serial.toString()) || [];
+    const serial = serialNumbers[0];
+    toast({ title: 'NFT minted successfully! 🎉', description: `NFT #${serial} minted.` });
+    return { serial, nftReceipt };
   },
 
   // Get user's NFTs
@@ -111,14 +111,12 @@ export const nftAPI = {
   },
 
   // Create Collection
-  createCollection: async (collectionData: CollectionData): Promise<CollectionResponse> => {
+  createCollection: async (collectionData: CollectionData): Promise<{ collectionId: string; receipt: any }> => {
     const formData = new FormData();
     formData.append('name', collectionData.name);
-    formData.append('description', collectionData.description);
     formData.append('blockchain', collectionData.blockchain);
     formData.append('walletAddress', collectionData.walletAddress);
     formData.append('timestamp', collectionData.timestamp);
-    
     if (collectionData.image) {
       formData.append('image', collectionData.image);
     }
@@ -128,11 +126,15 @@ export const nftAPI = {
         'Content-Type': 'multipart/form-data',
       },
     });
-    // API now returns the collection object directly
-    // Submitting and signing
-    const transaction = Transaction.fromBytes(Buffer.from(response.data.transaction, 'hex'))
-    await executeTransaction(collectionData.walletAddress, transaction);
-    return response.data;
+    const transaction = Transaction.fromBytes(Buffer.from(response.data.transaction, 'hex'));
+    toast({ title: 'Creating collection...', description: 'Please sign the transaction in your wallet.' });
+    const receipt = await executeTransaction(collectionData.walletAddress, transaction);
+    if (receipt.status.toString() !== 'SUCCESS') {
+      throw new Error(receipt.error?.response?.data?.message || receipt.error?.message || 'Error occurred while creating collection');
+    }
+    const collectionId = receipt.tokenId?.toString() ?? '';
+    toast({ title: 'Collection created!', description: `Collection ID: ${collectionId}` });
+    return { collectionId, receipt };
   },
 
   // Get user's collections
@@ -185,9 +187,6 @@ export const useMintNFT = () => {
     onSuccess: (data, variables) => {
       // Invalidate and refetch NFTs and collections
       queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.NFTS, variables.walletAddress] });
-      if (variables.collection) {
-        queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.COLLECTIONS, variables.walletAddress] });
-      }
     },
   });
 };

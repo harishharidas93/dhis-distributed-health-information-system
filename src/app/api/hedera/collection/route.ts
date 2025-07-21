@@ -34,41 +34,6 @@ interface Collection {
   metadata?: string;
 }
 
-// Mock collections data
-const MOCK_COLLECTIONS: Collection[] = [
-  {
-    id: "0.0.1234567",
-    name: "Genesis Collection",
-    description: "First NFT collection on Hedera",
-    symbol: "GEN",
-    totalSupply: 100,
-    owner: "0.0.6359539",
-    createdAt: "2024-01-15T10:30:00Z",
-    status: "Active"
-  },
-  {
-    id: "0.0.1234568", 
-    name: "Dragon Guardians",
-    description: "Legendary dragon collection",
-    symbol: "DRG",
-    totalSupply: 50,
-    owner: "0.0.6359539",
-    createdAt: "2024-01-18T16:45:00Z",
-    status: "Active"
-  },
-  {
-    id: "0.0.1234569",
-    name: "Crystal Series",
-    description: "Mystical crystal energy collection",
-    symbol: "CRY",
-    totalSupply: 25,
-    owner: "0.0.6359539",
-    createdAt: "2024-01-20T12:00:00Z",
-    status: "Active"
-  }
-];
-
-// Handle preflight requests
 export async function OPTIONS(request: NextRequest) {
   return new NextResponse(null, { status: 200, headers: corsHeaders });
 }
@@ -86,12 +51,8 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Filter collections by wallet address (owner)
-    const userCollections = [{ id: '0.0.6381137', name: 'Ad' }];
-    // const userCollections = await mirrorNode.fetchTokenInfo(walletAddress); // Adjust as needed to fetch collections
-
+    const userCollections = await mirrorNode.fetchTokenInfo(walletAddress); // Adjust as needed to fetch collections
     return NextResponse.json(userCollections, { headers: corsHeaders });
-
   } catch (error) {
     return NextResponse.json(
       { error: 'Failed to fetch collections' },

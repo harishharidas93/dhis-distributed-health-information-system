@@ -15,6 +15,16 @@ const nextConfig: NextConfig = {
       },
     },
   },
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'gateway.pinata.cloud',
+        port: '',
+        pathname: '/ipfs/**',
+      },
+    ],
+  },
 
   // Headers configuration for CORS
   async headers() {

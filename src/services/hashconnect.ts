@@ -35,7 +35,6 @@ export const getInitPromise = async () => {
 };
 
 export const getConnectedAccountIds = async () => {
-  console.log('Fetching connected account IDs...');
   await getHashConnect();
   return hc.connectedAccountIds;
 };

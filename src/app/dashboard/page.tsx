@@ -24,7 +24,8 @@ import {
 import { useStore } from '@/store/store';
 import { getHashConnect } from '@/services/hashconnect';
 import { useRouter } from "next/navigation";
-import { useMintNFT, useCreateCollection, useNFTs, useCollections } from '@/services/nft.service';
+import { useMintNFT, useCreateCollection, useNFTs } from '@/services/nft.service';
+import { useMemo } from 'react';
 
 const Index = () => {
   const { walletAddress, setWalletAddress, blockchainType } = useStore();
@@ -37,8 +38,19 @@ const Index = () => {
   const createCollectionMutation = useCreateCollection();
   
   // Fetch data with react-query
-  const { data: userNFTs = [] } = useNFTs(walletAddress);
-  const { data: userCollections = [] } = useCollections(walletAddress);
+  const { data: userNFTs = [], isLoading: nftsLoading } = useNFTs(walletAddress);
+
+  const userCollections = useMemo(() => {
+    const map = new Map();
+    userNFTs.forEach(nft => {
+      if (nft.token_id && nft.collection) {
+        if (!map.has(nft.token_id)) {
+          map.set(nft.token_id, { id: nft.token_id, name: nft.collection });
+        }
+      }
+    });
+    return Array.from(map.values());
+  }, [userNFTs]);
 
   // Loading state
   const isLoading = mintNFTMutation.isPending || createCollectionMutation.isPending;
@@ -61,7 +73,7 @@ const Index = () => {
   });
   
   // Calculate stats from API data
-  const recentNFTs = userNFTs.slice(-4);
+  const recentNFTs = userNFTs.slice(0, 4);
   const totalCollections = userCollections.length;
 
   // File upload handler (for NFTs only)
@@ -126,33 +138,39 @@ const Index = () => {
     }
 
     let collectionObj: { id: string; name: string } | null = null;
-    if (nftForm.collection === "__new__" || userCollections.length === 0) {
-      if (!nftForm.newCollectionName) {
-        toast({
-          title: "Missing collection name",
-          description: "Please enter a name for the new collection.",
-          variant: "destructive",
-        });
-        return;
-      }
-      const newCollection = await createCollectionMutation.mutateAsync({
-        name: nftForm.newCollectionName,
-        description: '', // No description for new collections
-        blockchain: blockchainType || 'hedera',
-        walletAddress: walletAddress,
-        timestamp: new Date().toISOString()
-      });
-      collectionObj = { id: newCollection.id, name: newCollection.name };
-    } else {
-      const found = userCollections.find(c => c.id === nftForm.collection);
-      if (found) {
-        collectionObj = { id: found.id, name: found.name };
-      }
-    }
-
+    let collectionId: string = '';
+    let collectionName: string = '';
     try {
-      // Prepare NFT data
-      await mintNFTMutation.mutateAsync({
+      if (nftForm.collection === "__new__" || userCollections.length === 0) {
+        if (!nftForm.newCollectionName) {
+          toast({
+            title: "Missing collection name",
+            description: "Please enter a name for the new collection.",
+            variant: "destructive",
+          });
+          return;
+        }
+        const { collectionId: newCollectionId } = await createCollectionMutation.mutateAsync({
+          name: nftForm.newCollectionName,
+          blockchain: blockchainType || 'hedera',
+          walletAddress: walletAddress,
+          timestamp: new Date().toISOString()
+        });
+        collectionId = newCollectionId;
+        collectionName = nftForm.newCollectionName ?? '';
+        collectionObj = { id: String(collectionId), name: String(collectionName) };
+      } else {
+        // Use existing collection
+        const found = userCollections.find(c => c.id === nftForm.collection);
+        if (found) {
+          collectionObj = { id: found.id, name: found.name };
+          collectionId = found.id;
+          collectionName = found.name;
+        }
+      }
+
+      // Mint NFT (signing and receipt handled in service)
+      const { serial } = await mintNFTMutation.mutateAsync({
         name: nftForm.name,
         description: nftForm.description,
         blockchain: blockchainType || 'hedera',
@@ -161,8 +179,7 @@ const Index = () => {
         walletAddress: walletAddress,
         timestamp: new Date().toISOString()
       });
-      
-      // Clear form on success
+
       setNftForm({
         name: '',
         description: '',
@@ -174,7 +191,7 @@ const Index = () => {
 
       toast({
         title: "NFT minted successfully! 🎉",
-        description: `${nftForm.name} has been minted on ${collectionObj?.name || 'a new collection'}`,
+        description: `${nftForm.name} (NFT #${serial}) minted in collection ${collectionName}`,
       });
     } catch (error: any) {
       toast({
@@ -243,14 +260,24 @@ const Index = () => {
 
               {/* Center - Recent NFTs Preview */}
               <div className="flex items-center space-x-4">
-                {recentNFTs.length > 0 ? <span className="text-sm text-muted-foreground">Recent:</span> : <span className="text-sm text-muted-foreground">No Recent Activity</span>}
-                <div className="flex items-center space-x-2">
-                  {recentNFTs.map((nft) => (
-                    <div key={nft.id} className="w-12 h-12 bg-muted rounded-xl flex items-center justify-center text-xl hover:scale-110 transition-transform duration-200 border">
-                      {nft.image || nft.imageUrl || "🎨"}
+                {nftsLoading ? (
+                  <span className="flex items-center text-sm text-muted-foreground"><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Loading...</span>
+                ) : recentNFTs.length > 0 ? (
+                  <>
+                    <span className="text-sm text-muted-foreground">Recent:</span>
+                    <div className="flex items-center space-x-2">
+                      {recentNFTs.map((nft) => (
+                        <div key={nft.id} className="w-12 h-12 bg-muted rounded-xl flex items-center justify-center text-xl hover:scale-110 transition-transform duration-200 border">
+                          {nft.imageUrl ? (
+                            <Image src={nft.imageUrl} alt={nft.name} width={50} height={50} className="object-cover w-full h-full" />
+                          ) : null}
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
+                  </>
+                ) : (
+                  <span className="text-sm text-muted-foreground">No Recent Activity</span>
+                )}
               </div>
 
               {/* Right - View All Button */}
@@ -413,19 +440,18 @@ const Index = () => {
 
         {/* View Section with Tabs */}
         <div id="nft-section">
+          <div className="flex items-center mb-6 text-lg font-semibold">
+            <ImageIcon className="w-4 h-4 mr-2" />
+            Your NFTs ({userNFTs.length})
+            {nftsLoading && <Loader2 className="w-4 h-4 ml-2 animate-spin" />}
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            <div className="flex items-center mb-4 text-lg font-semibold">
-              <ImageIcon className="w-4 h-4 mr-2" />
-              Your NFTs ({userNFTs.length})
-            </div>
             {userNFTs.map((nft) => (
               <Card key={nft.id} className="card-gradient border hover:border-primary/50 transition-all duration-300 group overflow-hidden">
                 <div className="aspect-square bg-muted flex items-center justify-center text-6xl group-hover:scale-105 transition-transform duration-300">
-                  {nft.image || nft.imageUrl ? (
-                    <Image src={nft.image || nft.imageUrl} alt={nft.name} width={200} height={200} className="object-cover w-full h-full" />
-                  ) : (
-                    null
-                  )}
+                  {nft.imageUrl ? (
+                    <Image src={nft.imageUrl} alt={nft.name} width={200} height={200} className="object-cover w-full h-full" />
+                  ) : null}
                 </div>
                 <CardContent className="p-4">
                   <h3 className="font-semibold mb-2 truncate">{nft.name}</h3>
