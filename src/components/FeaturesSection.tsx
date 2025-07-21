@@ -29,7 +29,7 @@ const features = [
   {
     icon: Upload,
     title: "Intuitive UX",
-    description: "Upload image, enter metadata, choose chain, mint. Simple 4-step process.",
+    description: "Connect wallet, Upload image, enter metadata, mint. Simple 4-step process.",
     gradient: "from-green-500 to-emerald-500"
   },
   {

@@ -15,10 +15,10 @@ import { useStore } from '@/store/store';
 import { getConnectedAccountIds, getHashConnect } from '@/services/hashconnect';
 
 const wallets = [
-  { name: "MetaMask", users: "30M+", color: "from-orange-500 to-yellow-500" },
-  { name: "WalletConnect", users: "15M+", color: "from-blue-500 to-cyan-500" },
-  { name: "Phantom", users: "7M+", color: "from-purple-500 to-pink-500" },
-  { name: "HashPack", users: "500K+", color: "from-green-500 to-emerald-500" }
+  { name: "MetaMask", color: "from-orange-500 to-yellow-500", active: false },
+  { name: "WalletConnect", color: "from-blue-500 to-cyan-500", active: false },
+  { name: "Phantom", color: "from-purple-500 to-pink-500", active: false },
+  { name: "HashPack", color: "from-green-500 to-emerald-500", active: true }
 ];
 
 interface WalletConnectionModalProps {
@@ -99,6 +99,7 @@ export const WalletConnectionModal = ({ open, onOpenChange }: WalletConnectionMo
           {wallets.map((wallet, index) => (
             <Button
               key={index}
+              disabled={!wallet.active || isWalletConnected}
               variant="outline"
               className="w-full justify-between p-4 h-auto border-border/50 hover:border-primary/50 hover:bg-primary/5 transition-all duration-300"
               onClick={() => handleWalletConnect(wallet.name)}
@@ -110,8 +111,7 @@ export const WalletConnectionModal = ({ open, onOpenChange }: WalletConnectionMo
                 <span className="font-semibold text-foreground" >{wallet.name}</span>
               </div>
               <div className="flex items-center text-muted-foreground text-sm">
-                <span className="mr-2">{wallet.users}</span>
-                <CheckCircle className="w-4 h-4 text-green-500" />
+                {wallet.active ? <CheckCircle className="w-4 h-4 text-green-500" /> : null}
               </div>
             </Button>
           ))}

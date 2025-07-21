@@ -1,4 +1,3 @@
-/* eslint-disable */
 import { NextRequest, NextResponse } from 'next/server';
 import mirrorNode from '@/utils/mirrorNode';
 import { TokenType, PublicKey, AccountId, TokenCreateTransaction, TransactionId, Timestamp } from '@hashgraph/sdk';
@@ -21,24 +20,11 @@ const corsHeaders = {
   'Access-Control-Allow-Credentials': 'true',
 };
 
-interface Collection {
-  id: string;
-  name: string;
-  description: string;
-  symbol: string;
-  totalSupply: number;
-  owner: string;
-  createdAt: string;
-  status: 'Active' | 'Paused' | 'Inactive';
-  image?: string;
-  metadata?: string;
-}
-
-export async function OPTIONS(request: NextRequest) {
+export async function OPTIONS() {
   return new NextResponse(null, { status: 200, headers: corsHeaders });
 }
 
-// GET - Fetch collections
+// GET - Fetch collections. It is not being used in the current implementation, but can be used to fetch user's collections.
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -54,6 +40,7 @@ export async function GET(request: NextRequest) {
     const userCollections = await mirrorNode.fetchTokenInfo(walletAddress); // Adjust as needed to fetch collections
     return NextResponse.json(userCollections, { headers: corsHeaders });
   } catch (error) {
+    console.error('Error fetching collections:', error);
     return NextResponse.json(
       { error: 'Failed to fetch collections' },
       { status: 500, headers: corsHeaders }
@@ -64,7 +51,6 @@ export async function GET(request: NextRequest) {
 // PUT - Create collection
 export async function PUT(request: NextRequest) {
   try {
-    // Parse FormData instead of JSON
     const formData = await request.formData();
     
     const payload = {

@@ -10,11 +10,11 @@ export const getHashConnect = async () => {
     const appMetadata = {
       name: 'Mint bridge',
       description: 'One minting platform, bridging across chains and wallets',
-      icons: ['https://www.hashpack.app/img/logo.svg'],
+      icons: ['https://i.ibb.co/pvsCcrh3/mint-bridge-icon.png'],
       url: typeof window !== 'undefined' ? window.location.hostname : '',
     };
 
-    const projectId = 'bfa190dbe93fcf30377b932b31129d05';
+    const projectId = '6e0af2dc263d2c3e5add3544c2b5b5c2';
 
     hc = new HashConnect(
       LedgerId.fromString('testnet'),

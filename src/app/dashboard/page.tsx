@@ -38,7 +38,7 @@ const Index = () => {
   const createCollectionMutation = useCreateCollection();
   
   // Fetch data with react-query
-  const { data: userNFTs = [], isLoading: nftsLoading } = useNFTs(walletAddress);
+  const { data: userNFTs = [], isLoading: nftsLoading, refetch: refetchNFTs } = useNFTs(walletAddress);
 
   const userCollections = useMemo(() => {
     const map = new Map();
@@ -127,8 +127,7 @@ const Index = () => {
 
   // Handle NFT minting with real API
   const handleMintNFT = async () => {
-    // Validate form
-    if (!nftForm.name || !nftForm.collection || !nftForm.description) {
+    if (!nftForm.name || !(nftForm.collection || nftForm.newCollectionName) || !nftForm.description) {
       toast({
         title: "Missing fields",
         description: "Please fill in all required fields",
@@ -141,6 +140,7 @@ const Index = () => {
     let collectionId: string = '';
     let collectionName: string = '';
     try {
+      debugger;
       if (nftForm.collection === "__new__" || userCollections.length === 0) {
         if (!nftForm.newCollectionName) {
           toast({
@@ -193,6 +193,7 @@ const Index = () => {
         title: "NFT minted successfully! 🎉",
         description: `${nftForm.name} (NFT #${serial}) minted in collection ${collectionName}`,
       });
+      await refetchNFTs();
     } catch (error: any) {
       toast({
         title: "Error minting NFT",
@@ -352,8 +353,8 @@ const Index = () => {
                   {userCollections.length === 0 ? (
                     <>
                       <Input
-                        value={nftForm.collection}
-                        onChange={e => setNftForm(prev => ({ ...prev, collection: e.target.value }))}
+                        value={nftForm.newCollectionName}
+                        onChange={e => setNftForm(prev => ({ ...prev, newCollectionName: e.target.value }))}
                         placeholder="Enter new collection name..."
                         className="bg-muted/50"
                       />
