@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -21,7 +21,6 @@ import {
   CheckCircle, 
   Filter,
   ArrowDown,
-  Github,
   Zap,
   Loader2,
   X
@@ -46,19 +45,13 @@ const Index = () => {
   const submitTransactionMutation = useSubmitTransaction();
   
   // Fetch data with react-query
-  const { data: userNFTs = [], isLoading: nftsLoading, refetch: refetchNFTs } = useNFTs(walletAddress);
-  const { data: userCollections = [], isLoading: collectionsLoading, refetch: refetchCollections } = useCollections(walletAddress);
+  const { data: userNFTs = [] } = useNFTs(walletAddress);
+  const { data: userCollections = [] } = useCollections(walletAddress);
 
   // Loading state
   const isLoading = mintNFTMutation.isPending || createCollectionMutation.isPending || 
                    signTransactionMutation.isPending || submitTransactionMutation.isPending;
 
-// useEffect(() => {
-//   if (!nftsLoading && walletAddress) {
-//     refetchNFTs(); // runs only once on mount
-//   }
-//   // eslint-disable-next-line react-hooks/exhaustive-deps
-// }, []);
   // Form states
   const [nftForm, setNftForm] = useState<{
     name: string;
@@ -67,21 +60,17 @@ const Index = () => {
     collection: string;
     image: File | null;
     imagePreview: string | null;
+    newCollectionName?: string; // Added for new collection name
   }>({
     name: '',
     description: '',
     blockchain: '',
     collection: '',
     image: null,
-    imagePreview: null
+    imagePreview: null,
+    newCollectionName: ''
   });
   
-  const [collectionForm, setCollectionForm] = useState({
-    name: '',
-    description: '',
-    blockchain: '',
-  });
-
   // Calculate stats from API data
   const recentNFTs = userNFTs.slice(-4);
   const totalCollections = userCollections.length;
@@ -136,67 +125,9 @@ const Index = () => {
     }));
   };
 
-  // Handle collection creation with real API
-  const handleCreateCollection = async () => {
-    // Validate form
-    if (!collectionForm.name || !collectionForm.description || !collectionForm.blockchain) {
-      toast({
-        title: "Missing fields",
-        description: "Please fill in all required fields",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    try {
-      // Prepare collection data
-      const collectionData = {
-        name: collectionForm.name,
-        description: collectionForm.description,
-        blockchain: collectionForm.blockchain,
-        walletAddress: walletAddress,
-        timestamp: new Date().toISOString()
-      };
-
-      toast({
-        title: "Creating collection...",
-        description: "Sending request to Hedera network",
-      });
-
-      // Send to Hedera backend - this handles the full transaction flow
-      const newCollection = await createCollectionMutation.mutateAsync(collectionData);
-      
-      // Clear form on success
-      setCollectionForm({
-        name: '',
-        description: '',
-        blockchain: '',
-      });
-
-      toast({
-        title: "Collection created successfully! 🎉",
-        description: `${collectionForm.name} has been created on ${collectionForm.blockchain}`,
-      });
-    } catch (error: any) {
-      toast({
-        title: "Error creating collection",
-        description: error.message || "Something went wrong",
-        variant: "destructive",
-      });
-    }
-  };
-
   // Handle NFT minting with real API
   const handleMintNFT = async () => {
     // Validate form
-    if (userCollections.length === 0) {
-      toast({
-        title: "No collections found",
-        description: "Please create a collection before minting an NFT.",
-        variant: "destructive",
-      });
-      return;
-    }
     if (!nftForm.name || !nftForm.description || !nftForm.blockchain) {
       toast({
         title: "Missing fields",
@@ -205,26 +136,43 @@ const Index = () => {
       });
       return;
     }
+    if (!nftForm.newCollectionName) {
+      toast({
+        title: "Missing collection name",
+        description: "Please enter a name for the new collection.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    let collectionObj: { id: string; name: string } | null = null;
+    if (nftForm.collection === "__new__" || userCollections.length === 0) {
+      const newCollection = await createCollectionMutation.mutateAsync({
+        name: nftForm.newCollectionName,
+        description: '', // No description for new collections
+        blockchain: nftForm.blockchain,
+        walletAddress: walletAddress,
+        timestamp: new Date().toISOString()
+      });
+      collectionObj = { id: newCollection.id, name: newCollection.name };
+    } else {
+      const found = userCollections.find(c => c.id === nftForm.collection);
+      if (found) {
+        collectionObj = { id: found.id, name: found.name };
+      }
+    }
 
     try {
       // Prepare NFT data
-      const nftData = {
+      await mintNFTMutation.mutateAsync({
         name: nftForm.name,
         description: nftForm.description,
         blockchain: nftForm.blockchain,
-        collection: userCollections.find(c => c.id === nftForm.collection),
+        collection: collectionObj,
         image: nftForm.image || undefined,
         walletAddress: walletAddress,
         timestamp: new Date().toISOString()
-      };
-
-      toast({
-        title: "Minting NFT...",
-        description: "Sending request to Hedera network",
       });
-
-      // Send to Hedera backend - this handles the full transaction flow
-      const newNFT = await mintNFTMutation.mutateAsync(nftData);
       
       // Clear form on success
       setNftForm({
@@ -233,7 +181,8 @@ const Index = () => {
         blockchain: '',
         collection: '',
         image: null,
-        imagePreview: null
+        imagePreview: null,
+        newCollectionName: ''
       });
 
       toast({
@@ -340,139 +289,141 @@ const Index = () => {
         <Card className="card-gradient border">
           <CardContent className="p-6">
             <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <TabsList className="grid w-full grid-cols-2 mb-8 h-12">
+              <TabsList className="grid w-full grid-cols-1 mb-8 h-12">
                 <TabsTrigger value="mint" className="text-base font-medium">
                   <Sparkles className="w-4 h-4 mr-2" />
                   Mint NFT
-                </TabsTrigger>
-                <TabsTrigger value="collection" className="text-base font-medium">
-                  <Folder className="w-4 h-4 mr-2" />
-                  Create Collection
                 </TabsTrigger>
               </TabsList>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 {/* Left Side - Image Upload (NFT only) */}
-                {activeTab === 'mint' && (
-                  <div className="space-y-6">
-                    <div>
-                      <h3 className="text-xl font-semibold mb-4">Upload NFT Image</h3>
-                      <Card className="border-2 border-dashed border-muted-foreground/30 hover:border-primary/50 transition-colors cursor-pointer card-gradient">
-                        <CardContent className="p-8 text-center">
-                          {nftForm.imagePreview ? (
-                            <div className="relative">
-                              <img 
-                                src={nftForm.imagePreview} 
-                                alt="Preview" 
-                                className="w-full h-48 object-cover rounded-lg mb-4"
-                              />
-                              <Button
-                                onClick={clearNFTImage}
-                                variant="outline"
-                                size="sm"
-                                className="absolute top-2 right-2 bg-white/80 hover:bg-white"
-                              >
-                                <X className="w-4 h-4" />
-                              </Button>
-                            </div>
-                          ) : (
-                            <>
-                              <Upload className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
-                              <p className="text-lg mb-2">Drag & drop your image here</p>
-                              <p className="text-muted-foreground text-sm mb-4">PNG, JPG, GIF up to 10MB</p>
-                            </>
-                          )}
-                          <input
-                            type="file"
-                            accept="image/*"
-                            onChange={handleFileUpload}
-                            className="hidden"
-                            id="file-upload-nft"
-                          />
-                          <label htmlFor="file-upload-nft">
-                            <Button className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white" asChild>
-                              <div>
-                                <ImageIcon className="w-4 h-4 mr-2" />
-                                Choose File
-                              </div>
+                <div className="space-y-6">
+                  <div>
+                    <h3 className="text-xl font-semibold mb-4">Upload NFT Image</h3>
+                    <Card className="border-2 border-dashed border-muted-foreground/30 hover:border-primary/50 transition-colors cursor-pointer card-gradient">
+                      <CardContent className="p-8 text-center">
+                        {nftForm.imagePreview ? (
+                          <div className="relative">
+                            <img 
+                              src={nftForm.imagePreview} 
+                              alt="Preview" 
+                              className="w-full h-48 object-cover rounded-lg mb-4"
+                            />
+                            <Button
+                              onClick={clearNFTImage}
+                              variant="outline"
+                              size="sm"
+                              className="absolute top-2 right-2 bg-white/80 hover:bg-white"
+                            >
+                              <X className="w-4 h-4" />
                             </Button>
-                          </label>
-                        </CardContent>
-                      </Card>
-                    </div>
-
-                    <div>
-                      <label className="block text-lg font-semibold mb-2">Collection</label>
-                      <Select value={nftForm.collection} onValueChange={(value) => setNftForm(prev => ({ ...prev, collection: value }))}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select a collection" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">No Collection</SelectItem>
-                          {userCollections.map((collection) => (
-                            <SelectItem key={collection.id} value={collection.id}>
-                              {collection.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
+                          </div>
+                        ) : (
+                          <>
+                            <Upload className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
+                            <p className="text-lg mb-2">Drag & drop your image here</p>
+                            <p className="text-muted-foreground text-sm mb-4">PNG, JPG, GIF up to 10MB</p>
+                          </>
+                        )}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleFileUpload}
+                          className="hidden"
+                          id="file-upload-nft"
+                        />
+                        <label htmlFor="file-upload-nft">
+                          <Button className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white" asChild>
+                            <div>
+                              <ImageIcon className="w-4 h-4 mr-2" />
+                              Choose File
+                            </div>
+                          </Button>
+                        </label>
+                      </CardContent>
+                    </Card>
                   </div>
-                )}
+
+                  {/* Collection selection/creation logic */}
+                  <div>
+                    <label className="block text-lg font-semibold mb-2">Collection</label>
+                    {userCollections.length === 0 ? (
+                      <>
+                        <Input
+                          value={nftForm.collection}
+                          onChange={e => setNftForm(prev => ({ ...prev, collection: e.target.value }))}
+                          placeholder="Enter new collection name..."
+                          className="bg-muted/50"
+                        />
+                        <p className="text-sm text-muted-foreground mt-2">
+                          No collections found. A new collection will be created before minting your NFT.
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <Select
+                          value={nftForm.collection}
+                          onValueChange={value => setNftForm(prev => ({ ...prev, collection: value }))}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a collection" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__new__">Create New Collection</SelectItem>
+                            {userCollections.map(collection => (
+                              <SelectItem key={collection.id} value={collection.id}>
+                                {collection.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {nftForm.collection === "__new__" && (
+                          <>
+                            <Input
+                              value={nftForm.newCollectionName || ''}
+                              onChange={e => setNftForm(prev => ({ ...prev, newCollectionName: e.target.value }))}
+                              placeholder="Enter new collection name..."
+                              className="bg-muted/50 mt-2"
+                            />
+                            <p className="text-sm text-muted-foreground mt-2">
+                              A new collection will be created before minting your NFT.
+                            </p>
+                          </>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </div>
 
                 {/* Metadata Section */}
-                <div className={`space-y-6 ${activeTab === 'mint' ? '' : 'col-span-full'}`}>
-                  <h3 className="text-xl font-semibold">
-                    {activeTab === 'mint' ? 'NFT Details' : 'Collection Details'}
-                  </h3>
-                  
+                <div className="space-y-6">
+                  <h3 className="text-xl font-semibold">NFT Details</h3>
                   <div className="space-y-4">
                     <div>
-                      <label className="block text-sm font-medium mb-2">
-                        {activeTab === 'mint' ? 'NFT Name' : 'Collection Name'}
-                      </label>
+                      <label className="block text-sm font-medium mb-2">NFT Name</label>
                       <Input
-                        value={activeTab === 'mint' ? nftForm.name : collectionForm.name}
-                        onChange={(e) => {
-                          if (activeTab === 'mint') {
-                            setNftForm(prev => ({ ...prev, name: e.target.value }));
-                          } else {
-                            setCollectionForm(prev => ({ ...prev, name: e.target.value }));
-                          }
-                        }}
-                        placeholder={activeTab === 'mint' ? 'Enter NFT name...' : 'Enter collection name...'}
+                        value={nftForm.name}
+                        onChange={e => setNftForm(prev => ({ ...prev, name: e.target.value }))}
+                        placeholder="Enter NFT name..."
                         className="bg-muted/50"
                       />
                     </div>
-                    
                     <div>
                       <label className="block text-sm font-medium mb-2">Description</label>
                       <Textarea
-                        value={activeTab === 'mint' ? nftForm.description : collectionForm.description}
-                        onChange={(e) => {
-                          if (activeTab === 'mint') {
-                            setNftForm(prev => ({ ...prev, description: e.target.value }));
-                          } else {
-                            setCollectionForm(prev => ({ ...prev, description: e.target.value }));
-                          }
-                        }}
+                        value={nftForm.description}
+                        onChange={e => setNftForm(prev => ({ ...prev, description: e.target.value }))}
                         rows={3}
-                        placeholder="Describe your NFT or collection..."
+                        placeholder="Describe your NFT..."
                         className="bg-muted/50 resize-none"
                       />
                     </div>
-
                     <div>
                       <label className="block text-sm font-medium mb-2">Blockchain</label>
                       <Select
-                        value={activeTab === 'mint' ? nftForm.blockchain : collectionForm.blockchain}
-                        onValueChange={(value) => {
-                          if (activeTab === 'mint') {
-                            setNftForm(prev => ({ ...prev, blockchain: value }));
-                          } else {
-                            setCollectionForm(prev => ({ ...prev, blockchain: value }));
-                          }
-                        }}
+                        value={nftForm.blockchain}
+                        onValueChange={value => setNftForm(prev => ({ ...prev, blockchain: value }))}
                       >
                         <SelectTrigger className="bg-muted/50">
                           <SelectValue placeholder="Select blockchain" />
@@ -485,9 +436,8 @@ const Index = () => {
                         </SelectContent>
                       </Select>
                     </div>
-
                     <Button 
-                      onClick={activeTab === 'mint' ? handleMintNFT : handleCreateCollection}
+                      onClick={handleMintNFT}
                       className="w-full button-gradient glow-effect"
                       size="lg"
                       disabled={isLoading}
@@ -500,7 +450,7 @@ const Index = () => {
                       ) : (
                         <>
                           <Zap className="w-5 h-5 mr-2" />
-                          {activeTab === 'mint' ? 'Mint NFT' : 'Create Collection'}
+                          Mint NFT
                         </>
                       )}
                     </Button>
