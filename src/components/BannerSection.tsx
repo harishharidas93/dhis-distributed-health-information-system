@@ -9,7 +9,7 @@ import { useEffect, useState } from "react";
 import { useStore } from "@/store/store";
 import { useRouter } from "next/navigation";
 
-export const HeroSection = () => {
+export const BannerSection = () => {
   const [isWalletModalOpen, setIsWalletModalOpen] = useState(false);
   const { walletAddress } = useStore();
   const router = useRouter();
@@ -87,7 +87,7 @@ export const HeroSection = () => {
             <Button 
               variant="outline" 
               size="lg"
-              className="text-lg px-8 py-6 h-auto border-primary/50 hover:bg-primary/10"
+              className="text-lg px-8 py-6 h-auto border-primary/50 hover:bg-primary/10 hover:text-primary transition-colors"
             >
               View on GitHub
             </Button>

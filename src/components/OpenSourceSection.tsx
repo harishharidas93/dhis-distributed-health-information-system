@@ -4,21 +4,11 @@ import { Badge } from "@/components/ui/badge";
 import { 
   GitBranch, 
   Github, 
-  Star, 
-  GitFork, 
   Users, 
   Code, 
   ArrowRight,
-  Heart,
-  Zap
+  Heart
 } from "lucide-react";
-
-const stats = [
-  { icon: Star, label: "GitHub Stars", value: "2.4K+", color: "text-yellow-500" },
-  { icon: GitFork, label: "Forks", value: "340+", color: "text-blue-500" },
-  { icon: Users, label: "Contributors", value: "89", color: "text-green-500" },
-  { icon: Code, label: "Commits", value: "1.2K+", color: "text-purple-500" }
-];
 
 const features = [
   {
@@ -69,17 +59,6 @@ export const OpenSourceSection = () => {
           </p>
         </div>
 
-        {/* Stats Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-16">
-          {stats.map((stat, index) => (
-            <Card key={index} className="card-neon p-6 text-center">
-              <stat.icon className={`w-8 h-8 mx-auto mb-3 ${stat.color}`} />
-              <div className="text-2xl font-bold mb-1">{stat.value}</div>
-              <div className="text-sm text-muted-foreground">{stat.label}</div>
-            </Card>
-          ))}
-        </div>
-
         {/* Features */}
         <div className="grid md:grid-cols-3 gap-8 mb-16">
           {features.map((feature, index) => (
@@ -94,7 +73,7 @@ export const OpenSourceSection = () => {
         </div>
 
         {/* CTA Cards */}
-        <div className="grid md:grid-cols-2 gap-8">
+        <div className="grid md:grid-cols-1 gap-8">
           {/* GitHub CTA */}
           <Card className="card-neon p-8 text-center">
             <Github className="w-12 h-12 mx-auto mb-6 text-foreground" />
@@ -103,24 +82,9 @@ export const OpenSourceSection = () => {
               Dive into the codebase, explore the architecture, and see how we built 
               the most flexible NFT minting platform.
             </p>
-            <Button variant="outline" size="lg" className="border-primary/50 hover:bg-primary/10">
+            <Button variant="outline" size="lg" className="border-primary/50 hover:bg-primary/10 hover:text-primary transition-colors">
               <Github className="w-5 h-5 mr-2" />
               View on GitHub
-              <ArrowRight className="w-5 h-5 ml-2" />
-            </Button>
-          </Card>
-
-          {/* Contribute CTA */}
-          <Card className="card-neon p-8 text-center">
-            <Zap className="w-12 h-12 mx-auto mb-6 text-primary" />
-            <h3 className="text-2xl font-bold mb-4">Start Contributing</h3>
-            <p className="text-muted-foreground mb-6">
-              Join our growing community of contributors. From bug fixes to new features, 
-              every contribution matters.
-            </p>
-            <Button variant="neon" size="lg">
-              <GitBranch className="w-5 h-5 mr-2" />
-              Contribute Now
               <ArrowRight className="w-5 h-5 ml-2" />
             </Button>
           </Card>
