@@ -1,81 +1,111 @@
+#root {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 2rem;
+  text-align: center;
+}
+
+.logo {
+  height: 6em;
+  padding: 1.5em;
+  will-change: filter;
+  transition: filter 300ms;
+}
+.logo:hover {
+  filter: drop-shadow(0 0 2em #646cffaa);
+}
+.logo.react:hover {
+  filter: drop-shadow(0 0 2em #61dafbaa);
+}
+
+@keyframes logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  a:nth-of-type(2) .logo {
+    animation: logo-spin infinite 20s linear;
+  }
+}
+
+.card {
+  padding: 2em;
+}
+
+.read-the-docs {
+  color: #888;
+}
+
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+All colors MUST be HSL.
+*/
+
 @layer base {
   :root {
-    /* Dark theme base colors */
-    --background: 240 10% 3.9%;
-    --foreground: 0 0% 98%;
-
-    --card: 240 10% 3.9%;
-    --card-foreground: 0 0% 98%;
-
-    --popover: 240 10% 3.9%;
-    --popover-foreground: 0 0% 98%;
-
-    /* Neon primary colors - Electric Blue */
-    --primary: 200 100% 50%;
-    --primary-foreground: 240 10% 3.9%;
-    --primary-glow: 200 100% 70%;
-
-    /* Secondary neon - Purple */
-    --secondary: 280 100% 70%;
-    --secondary-foreground: 240 10% 3.9%;
-
-    /* Muted colors for subtle elements */
-    --muted: 240 5% 15%;
-    --muted-foreground: 240 5% 64.9%;
-
-    /* Accent neon - Pink */
-    --accent: 320 100% 70%;
-    --accent-foreground: 240 10% 3.9%;
-
-    --destructive: 0 72% 51%;
-    --destructive-foreground: 0 0% 98%;
-
-    --border: 240 5% 15%;
-    --input: 240 5% 15%;
-    --ring: 200 100% 50%;
-
-    /* Web3 Chain Colors */
-    --ethereum: 240 100% 50%;
-    --solana: 290 100% 70%;
-    --hedera: 160 100% 50%;
-    --polygon: 280 100% 50%;
-
-    /* Neon Gradients - More subtle and elegant */
-    --gradient-primary: linear-gradient(135deg, hsl(200 100% 50% / 0.9), hsl(280 100% 70% / 0.9));
-    --gradient-secondary: linear-gradient(135deg, hsl(320 100% 70% / 0.9), hsl(200 100% 50% / 0.9));
-    --gradient-hero: linear-gradient(135deg, hsl(200 100% 50% / 0.05), hsl(280 100% 70% / 0.05));
-    --gradient-card: linear-gradient(135deg, hsl(240 5% 15% / 0.95), hsl(240 5% 10% / 0.9));
-
-    /* Refined Glows - Less aggressive */
-    --glow-primary: 0 0 30px hsl(200 100% 50% / 0.3);
-    --glow-secondary: 0 0 25px hsl(280 100% 70% / 0.25);
-    --glow-accent: 0 0 20px hsl(320 100% 70% / 0.2);
-
-    /* Animations */
+    /* Healthcare + Web3 Design System */
+    --background: 0 0% 100%;
+    --foreground: 213 31% 14%;
+    
+    --card: 0 0% 100%;
+    --card-foreground: 213 31% 14%;
+    
+    --popover: 0 0% 100%;
+    --popover-foreground: 213 31% 14%;
+    
+    /* Medical Blue Primary */
+    --primary: 217 91% 60%;
+    --primary-foreground: 0 0% 100%;
+    --primary-hover: 217 91% 55%;
+    
+    /* Trust Green Secondary */
+    --secondary: 160 84% 39%;
+    --secondary-foreground: 0 0% 100%;
+    --secondary-hover: 160 84% 34%;
+    
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 9% 46%;
+    
+    --accent: 220 14% 96%;
+    --accent-foreground: 213 31% 14%;
+    
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 217 91% 60%;
+    
+    --radius: 0.75rem;
+    
+    /* Healthcare Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(217 91% 60%), hsl(160 84% 39%));
+    --gradient-hero: linear-gradient(135deg, hsl(217 91% 60% / 0.1), hsl(160 84% 39% / 0.1));
+    --gradient-card: linear-gradient(145deg, hsl(0 0% 100%), hsl(220 14% 98%));
+    
+    /* Medical Shadows */
+    --shadow-soft: 0 2px 8px hsl(217 91% 60% / 0.08);
+    --shadow-medium: 0 4px 16px hsl(217 91% 60% / 0.12);
+    --shadow-strong: 0 8px 32px hsl(217 91% 60% / 0.16);
+    
+    /* Trust Colors */
+    --trust-blue: 217 91% 60%;
+    --trust-green: 160 84% 39%;
+    --security-purple: 262 83% 58%;
+    --privacy-indigo: 244 58% 51%;
+    
+    /* Animation Variables */
     --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    --transition-bounce: all 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55);
-
-    --radius: 0.5rem;
-
-    --sidebar-background: 0 0% 98%;
-
-    --sidebar-foreground: 240 5.3% 26.1%;
-
-    --sidebar-primary: 240 5.9% 10%;
-
-    --sidebar-primary-foreground: 0 0% 98%;
-
-    --sidebar-accent: 240 4.8% 95.9%;
-
-    --sidebar-accent-foreground: 240 5.9% 10%;
-
-    --sidebar-border: 220 13% 91%;
-
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --transition-bounce: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
   }
 
   .dark {
@@ -123,155 +153,6 @@
   }
 
   body {
-    @apply bg-background text-foreground overflow-x-hidden;
-  }
-}
-
-@layer components {
-  /* Neon Button Variants */
-  .btn-neon {
-    @apply relative overflow-hidden border-2 transition-all duration-300;
-    background: var(--gradient-primary);
-    border-color: hsl(var(--primary));
-    box-shadow: var(--glow-primary);
-  }
-  
-  .btn-neon:hover {
-    box-shadow: var(--glow-primary), inset 0 0 20px hsl(var(--primary) / 0.2);
-    transform: translateY(-2px);
-  }
-
-  .btn-neon-secondary {
-    @apply relative overflow-hidden border-2 transition-all duration-300;
-    background: var(--gradient-secondary);
-    border-color: hsl(var(--secondary));
-    box-shadow: var(--glow-secondary);
-  }
-
-  .btn-neon-secondary:hover {
-    box-shadow: var(--glow-secondary), inset 0 0 20px hsl(var(--secondary) / 0.2);
-    transform: translateY(-2px);
-  }
-
-  /* Card Variants */
-  .card-neon {
-    @apply border-2 backdrop-blur-sm transition-all duration-300;
-    background: var(--gradient-card);
-    border-color: hsl(var(--border));
-    box-shadow: 0 8px 32px hsl(var(--primary) / 0.1);
-  }
-
-  .card-neon:hover {
-    border-color: hsl(var(--primary) / 0.5);
-    box-shadow: 0 8px 40px hsl(var(--primary) / 0.2), var(--glow-primary);
-    transform: translateY(-4px);
-  }
-
-  /* Web3 Chain Pills */
-  .chain-ethereum {
-    @apply bg-gradient-to-r from-blue-500 to-blue-600 text-white;
-    box-shadow: 0 4px 14px hsl(240 100% 50% / 0.3);
-  }
-
-  .chain-solana {
-    @apply bg-gradient-to-r from-purple-500 to-purple-600 text-white;
-    box-shadow: 0 4px 14px hsl(290 100% 70% / 0.3);
-  }
-
-  .chain-hedera {
-    @apply bg-gradient-to-r from-green-500 to-green-600 text-white;
-    box-shadow: 0 4px 14px hsl(160 100% 50% / 0.3);
-  }
-
-  .chain-polygon {
-    @apply bg-gradient-to-r from-purple-600 to-indigo-600 text-white;
-    box-shadow: 0 4px 14px hsl(280 100% 50% / 0.3);
-  }
-
-  /* Animated Background */
-  .animated-bg {
-    background: 
-      radial-gradient(circle at 20% 80%, hsl(var(--primary) / 0.1) 0%, transparent 50%),
-      radial-gradient(circle at 80% 20%, hsl(var(--secondary) / 0.1) 0%, transparent 50%),
-      radial-gradient(circle at 40% 40%, hsl(var(--accent) / 0.1) 0%, transparent 50%);
-    animation: pulse 4s ease-in-out infinite alternate;
-  }
-
-  /* Refined Glow Effects */
-  .glow-text {
-    text-shadow: 0 0 15px hsl(var(--primary) / 0.3);
-  }
-
-  .glow-border {
-    box-shadow: 0 0 15px hsl(var(--primary) / 0.2);
-  }
-
-  /* Improved Animations */
-  .animate-fade-in {
-    animation: fadeIn 0.8s ease-out;
-  }
-}
-
-@layer utilities {
-  /* Animation Classes */
-  .animate-float {
-    animation: float 6s ease-in-out infinite;
-  }
-
-  .animate-pulse-slow {
-    animation: pulse 3s ease-in-out infinite;
-  }
-
-  .animate-glow {
-    animation: glow 2s ease-in-out infinite alternate;
-  }
-
-  .gradient-text {
-    @apply bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 bg-clip-text text-transparent;
-  }
-  
-  .gradient-border {
-    @apply relative before:absolute before:inset-0 before:rounded-[inherit] before:p-[1px] before:bg-gradient-to-r before:from-blue-500 before:via-purple-500 before:to-pink-500 before:-z-10 before:content-[''];
-  }
-  
-  .card-gradient {
-    @apply bg-gradient-to-br from-card/50 to-card/30 backdrop-blur-sm;
-  }
-  
-  .button-gradient {
-    @apply bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 hover:from-blue-500 hover:via-purple-500 hover:to-pink-500;
-  }
-  
-  .button-gradient-secondary {
-    @apply bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500;
-  }
-  
-  .glow-effect {
-    @apply shadow-[0_0_20px_rgba(139,92,246,0.3)];
-  }
-}
-
-@keyframes float {
-  0%, 100% { transform: translateY(0px); }
-  50% { transform: translateY(-10px); }
-}
-
-@keyframes glow {
-  from { 
-    box-shadow: 0 0 20px hsl(var(--primary) / 0.5);
-  }
-  to { 
-    box-shadow: 0 0 30px hsl(var(--primary) / 0.8), 0 0 40px hsl(var(--secondary) / 0.3);
-  }
-}
-
-@keyframes fadeIn {
-  from { 
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to { 
-    opacity: 1;
-    transform: translateY(0);
+    @apply bg-background text-foreground;
   }
 }

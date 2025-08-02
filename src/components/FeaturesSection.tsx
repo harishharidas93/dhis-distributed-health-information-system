@@ -1,4 +1,5 @@
 'use client';
+/* mint-bridge */
 
 import { Card } from "@/components/ui/card";
 import { 

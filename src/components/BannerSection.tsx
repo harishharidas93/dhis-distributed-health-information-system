@@ -1,5 +1,5 @@
 'use client';
-
+/* mint-bridge */
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ArrowRight, Sparkles, Zap } from "lucide-react";

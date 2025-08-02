@@ -1,4 +1,5 @@
 'use client';
+/* mint-bridge */
 
 import {
   Dialog,
