@@ -5,7 +5,7 @@
       "type": "node",
       "request": "launch",
       "name": "Debug npm run dev",
-      "runtimeExecutable": "/Users/A-10443/.nvm/versions/node/v20.18.1/bin/npm",
+      "runtimeExecutable": "/Users/harishharidas/.nvm/versions/node/v20.18.3/bin/npm",
       "runtimeArgs": [
         "run",
         "dev"

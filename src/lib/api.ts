@@ -10,7 +10,8 @@ export const API_CONFIG = {
     UPLOAD_METADATA: '/hedera/metadata',
     MINT_NFT: '/hedera/nft',
     SUBMIT_TRANSACTION: '/hedera/submit-transaction',
-    
+    UPLOAD_MEDICAL_RECORD: '/dhis/medical-record',
+
     // Legacy endpoints (keep for fallback)
     GET_NFTS: '/hedera/nft',
     GET_NFT_BY_ID: '/hedera/nft',
