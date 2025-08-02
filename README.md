@@ -1,108 +1,124 @@
-# Mint Bridge
+# 🏥 Decentralized Medical Record Storage (DHiS)
 
-A unified, open-source NFT minting platform that connects all your wallets and chains in one beautiful interface. Built for seamless multi-chain NFT creation, with a focus on Hedera.
+This project is a prototype for securely storing, encrypting, and sharing **medical records** as **dynamic NFTs** on the **Hedera blockchain**, with data stored on **IPFS** and identities managed via **DID**.
 
----
-
-## 🚀 Tech Stack
-
-- **Framework:** [Next.js](https://nextjs.org/) (App Router, SSR/SSG)
-- **Frontend:** React, TypeScript
-- **Styling:** Tailwind CSS
-- **State Management:** Zustand
-- **Data Fetching:** React Query (@tanstack/react-query)
-- **Blockchain:** Hedera SDK, HashConnect
-- **UI Components:** Custom + Shadcn UI
-- **Other:** Pinata (IPFS), Lucide Icons
+It is designed for **hackathon/demo use**, with a minimal, database-less backend and secure cryptographic flows.
 
 ---
 
-## 🛠️ Getting Started
+## 🔧 Tech Stack
 
-### 1. Clone the repo
-```bash
-git clone https://github.com/yourusername/mint-bridge.git
-cd mint-bridge
+| Layer                    | Technology                             |
+|--------------------------|-----------------------------------------|
+| Frontend (dApp)          | Next.js 14 / React                      |
+| Backend API              | Next.js API routes                      |
+| Blockchain               | Hedera Hashgraph                        |
+| NFT Standard             | HIP-412 Metadata + Dynamic NFTs         |
+| Storage                  | IPFS (via Pinata)                       |
+| Encryption               | AES-256-GCM + RSA (OpenSSL)            |
+| Identity (DID)           | Custom Hedera-based DID with public keys|
+| Upload SDK               | Pinata SDK                              |
+
+---
+
+## 🗂 Folder Structure with Routes
+
+- src/
+  - app/
+    - access/
+      - page.tsx  — `/access` → Patient or provider accesses decrypted medical records
+    - upload/
+      - page.tsx  — `/upload` → Hospital uploads encrypted medical record and metadata
+    - layout.tsx — App-wide layout (header, footer, etc.)
+    - globals.css — Global styles
+  - api/
+    - dhis/
+      - medical-record/
+        - route.ts — `/api/dhis/medical-record`
+          - `PUT`: Encrypt + upload PDF to IPFS, generate metadata
+          - `GET`: Decrypt PDF using RSA + AES and return to frontend
+  - components/
+    - ui/
+      - button.tsx, input.tsx, etc. — Reusable UI elements
+    - layout/
+      - Page wrappers or grid layouts (optional)
+  - utils/
+    - mirrorNode.ts — Mirror Node helpers for querying Hedera topics
+    - imageProcessor.ts — SHA-256 checksum generation for file integrity
+    - encryption.ts — AES/RSA encryption logic (optional helper functions)
+  - config/
+    - config.ts — Central config file for Pinata keys, gateway URL, etc.
+
+- public.pem — RSA public key (used to encrypt AES key)
+- private.pem — RSA private key (used to decrypt AES key)
+- .env.local — Environment configuration
+- yarn.lock — Yarn dependency lock file
+- README.md — Project documentation
+
+
+
+---
+
+## 🔐 Security Flow
+
+1. **Encrypt PDF** with AES-256-GCM
+2. **Encrypt AES key** using the receiver's (patient’s) public RSA key
+3. **Upload encrypted PDF** to IPFS via Pinata
+4. **Store metadata** (iv, auth tag, encrypted AES key, and CID) to IPFS
+5. **Decrypt** using private key only when access is granted
+
+---
+
+## 🧪 API Overview
+
+### 📤 PUT `/api/dhis/medical-record`
+
+**Purpose:** Encrypt a PDF file and store it on IPFS, along with AES metadata  
+**Request Type:** `multipart/form-data`
+
+**Form fields:**
+
+- `document` - PDF file (Blob)
+- `name` - NFT name
+- `description` - NFT description
+- `collectionId` - Hedera NFT collection ID
+- `collectionName` - NFT collection name
+- `walletAddress` - Issuer/creator wallet address
+
+**Response:**
+```json
+{
+  "fileHash": "QmEncryptedCID...",
+  "metadataCid": "QmMetadataCID..."
+}
+
 ```
 
-### 2. Install dependencies
+## 🚀 Getting Started
+
+### 1. Clone the Repository
+
 ```bash
+git clone https://github.com/your-username/dhis-medical-records.git
+```
+
+### 2. Install Dependencies
+
 yarn install
-# or
-npm install
-```
 
-### 3. Set up environment variables
-Create a `.env.local` file in the root directory. Example:
-```env
-# Pinata IPFS Configuration, you can get your JWT from Pinata dashboard. Use any email to create an account.
-# For more information, visit: https://docs.pinata.cloud/overview
-PINATA_JWT=access_jwt_from_pinata_dashboard
-# Gateway URL can stay the same
-PINATA_GATEWAY_URL=https://gateway.pinata.cloud/ipfs/
+### 3. Setup Environment Variables
 
-# Hedera Configuration
-HEDERA_NETWORK=testnet
+Create a .env.local file in the root directory with the following:
 
-# Mirror Node Configuration, we are mirror node for getting data like historical records. Data will be bit slow but free of cost.
-HEDERA_MIRROR_NODE_URL=https://testnet.mirrornode.hedera.com/api/v1
-
-NEXT_PUBLIC_API_URL=http://localhost:3000
-
-# (Add any other required variables here)
-```
-
-### 4. Run the development server
 ```bash
+PINATA_JWT=your_pinata_jwt_token
+PINATA_GATEWAY=https://gateway.pinata.cloud/ipfs/
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+```
+
+Update values as required for your environment.
+
+### 4. Start the Development Server
 yarn dev
-# or
-npm run dev
-```
-Visit [http://localhost:3000](http://localhost:3000) to view the app.
 
-### 5. Build for production
-```bash
-yarn build && yarn start
-# or
-npm run build && npm start
-```
-
----
-
-## 📁 Basic File Structure
-
-```
-mint-bridge/
-├── src/
-│   ├── app/                # Next.js app directory (routes, pages, API)
-│   │   ├── dashboard/      # Main dashboard UI
-│   │   └── api/            # API routes (Hedera, Ethereum, etc.)
-│   ├── components/         # Reusable UI components
-│   ├── hooks/              # Custom React hooks
-│   ├── lib/                # API clients, utilities
-│   ├── services/           # Blockchain and wallet logic
-│   ├── store/              # Zustand store
-│   ├── utils/              # Utility functions
-│   └── assets/             # Static assets (images, etc.)
-├── public/                 # Static files
-├── styles/                 # Global styles
-├── LICENSE                 # MIT License
-├── README.md               # This file
-└── ...
-```
-
----
-
-## 📝 Documentation
-
-- **Next.js:** [https://nextjs.org/docs](https://nextjs.org/docs)
-- **React Query:** [https://tanstack.com/query/latest/docs/framework/react/overview](https://tanstack.com/query/latest/docs/framework/react/overview)
-- **Zustand:** [https://docs.pmnd.rs/zustand/getting-started/introduction](https://docs.pmnd.rs/zustand/getting-started/introduction)
-- **Hedera SDK:** [https://hedera.com/docs](https://hedera.com/docs)
-- **Tailwind CSS:** [https://tailwindcss.com/docs](https://tailwindcss.com/docs)
-
----
-
-## 🛡️ License
-
-This project is licensed under the [MIT License](./LICENSE) © 2025 Harish Haridas.
+Access the app at: http://localhost:3000
