@@ -1,4 +1,4 @@
-# 🏥 Decentralized Medical Record Storage (DHiS)
+# 🏥 Decentralized health Information System (dHiS)
 
 This project is a prototype for securely storing, encrypting, and sharing **medical records** as **dynamic NFTs** on the **Hedera blockchain**, with data stored on **IPFS** and identities managed via **DID**.
 
