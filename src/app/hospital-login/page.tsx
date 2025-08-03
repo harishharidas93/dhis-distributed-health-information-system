@@ -1,56 +1,61 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect } from "react";
+import { getConnectedAccountIds, getHashConnect } from '@/services/hashconnect';
+import { useSignIn } from '@/services/user.service';
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
-import { Building2, Shield, Users, ArrowRight, Wallet, Mail } from "lucide-react";
+import { useStore } from "@/store/store";
+import { Building2, Shield, Users, ArrowRight, Wallet } from "lucide-react";
 import Link from "next/link";
 import heroImage from "@/assets/healthcare-hero.jpg";
 
 const HospitalLogin = () => {
-  const [credentials, setCredentials] = useState({
-    institutionId: "",
-    password: "",
-  });
-  const [isLoading, setIsLoading] = useState(false);
-  const [loginMethod, setLoginMethod] = useState<"email" | "wallet">("email");
-  const { toast } = useToast();
+    const router = useRouter();
+    const { toast } = useToast();
 
-  const handleEmailLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!credentials.institutionId || !credentials.password) {
-      toast({
-        title: "Missing Credentials",
-        description: "Please enter both Institution ID and password.",
-        variant: "destructive",
-      });
-      return;
+    const {setUser, walletAddress} = useStore();
+    const isWalletConnected = !!walletAddress;
+  const signInMutation = useSignIn();
+
+  useEffect(() => {
+    if (walletAddress) {
+      signInMutation.mutate(
+        { walletAddress, type: "hospital" },
+        {
+          onSuccess: (user) => {
+            setUser(user);
+            toast({
+              title: "Login Successful",
+              description: `Welcome, ${user.name}`,
+            });
+            router.push("/hospital-dashboard");
+          },
+          onError: (error: any) => {
+            toast({
+              title: "Login Failed",
+              description: error?.message || "Could not login.",
+              variant: "destructive",
+            });
+          },
+        }
+      );
     }
-    setIsLoading(true);
-    setTimeout(() => {
-      toast({
-        title: "Login Successful",
-        description: "Welcome to dHIS Healthcare Portal",
-      });
-      setIsLoading(false);
-      window.location.href = "/hospital-dashboard";
-    }, 2000);
-  };
+  }, [walletAddress]);
 
   const handleWalletLogin = async () => {
-    setIsLoading(true);
-    setTimeout(() => {
-      toast({
-        title: "Wallet Connected",
-        description: "Successfully connected to healthcare institution wallet",
-      });
-      setIsLoading(false);
-      window.location.href = "/hospital-dashboard";
-    }, 2000);
+    const hc = await getHashConnect();
+    if (isWalletConnected) {
+      const connectedAccountIds = await getConnectedAccountIds();
+      if (connectedAccountIds.length > 0) {
+        hc.disconnect();
+      }
+    } else {
+      hc.openPairingModal();
+    }
   };
 
   return (
@@ -94,106 +99,41 @@ const HospitalLogin = () => {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {/* Login Method Toggle */}
-              <div className="flex gap-2 mb-6">
-                <Button
-                  type="button"
-                  variant={loginMethod === "email" ? "default" : "outline"}
-                  onClick={() => setLoginMethod("email")}
-                  className="flex-1 gap-2"
-                >
-                  <Mail className="h-4 w-4" />
-                  Institution ID
-                </Button>
-                <Button
-                  type="button"
-                  variant={loginMethod === "wallet" ? "default" : "outline"}
-                  onClick={() => setLoginMethod("wallet")}
-                  className="flex-1 gap-2"
-                >
-                  <Wallet className="h-4 w-4" />
-                  Wallet
+              <div className="space-y-4">
+                <div className="text-center p-6 border-2 border-dashed border-border rounded-lg">
+                  <Wallet className="h-12 w-12 text-primary mx-auto mb-4" />
+                  <h3 className="font-medium mb-2">Connect Institution Wallet</h3>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Connect your institution&apos;s crypto wallet for secure access
+                  </p>
+                </div>
+                <Button onClick={handleWalletLogin} className="w-full" disabled={signInMutation.isPending}>
+                  {signInMutation.isPending ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                      Connecting...
+                    </>
+                  ) : (
+                    <>
+                      <Wallet className="h-4 w-4 mr-2" />
+                      Connect Wallet
+                    </>
+                  )}
                 </Button>
               </div>
-              {loginMethod === "email" ? (
-                <form onSubmit={handleEmailLogin} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="institutionId">Institution ID</Label>
-                    <Input
-                      id="institutionId"
-                      type="text"
-                      placeholder="Enter your institution ID"
-                      value={credentials.institutionId}
-                      onChange={(e) =>
-                        setCredentials({ ...credentials, institutionId: e.target.value })
-                      }
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="password">Password</Label>
-                    <Input
-                      id="password"
-                      type="password"
-                      placeholder="Enter your password"
-                      value={credentials.password}
-                      onChange={(e) =>
-                        setCredentials({ ...credentials, password: e.target.value })
-                      }
-                      required
-                    />
-                  </div>
-                  <Button type="submit" className="w-full" disabled={isLoading}>
-                    {isLoading ? (
-                      <>
-                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-                        Signing In...
-                      </>
-                    ) : (
-                      <>
-                        <Mail className="h-4 w-4 mr-2" />
-                        Sign In with Institution ID
-                      </>
-                    )}
-                  </Button>
-                </form>
-              ) : (
-                <div className="space-y-4">
-                  <div className="text-center p-6 border-2 border-dashed border-border rounded-lg">
-                    <Wallet className="h-12 w-12 text-primary mx-auto mb-4" />
-                    <h3 className="font-medium mb-2">Connect Institution Wallet</h3>
-                    <p className="text-sm text-muted-foreground mb-4">
-                      Connect your institution&apos;s crypto wallet for secure access
-                    </p>
-                  </div>
-                  <Button onClick={handleWalletLogin} className="w-full" disabled={isLoading}>
-                    {isLoading ? (
-                      <>
-                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-                        Connecting...
-                      </>
-                    ) : (
-                      <>
-                        <Wallet className="h-4 w-4 mr-2" />
-                        Connect Wallet
-                      </>
-                    )}
-                  </Button>
-                </div>
-              )}
               <div className="mt-6">
                 <Separator />
                 <div className="text-center mt-4">
                   <p className="text-sm text-muted-foreground">
                     Need institutional access?{" "}
-                    <Button variant="link" className="p-0 h-auto font-medium">
-                      Contact administrator
+                    <Button asChild variant="link" className="p-0 h-auto font-medium">
+                      <Link href="/hospital-signup">Sign Up</Link>
                     </Button>
                   </p>
                 </div>
               </div>
               {/* Features Overview */}
-              <div className="mt-8 pt-6 border-t">
+              <div className="mt-4 pt-6 border-t">
                 <h3 className="font-medium mb-4 text-center">Platform Features</h3>
                 <div className="space-y-3 text-sm">
                   <div className="flex items-center gap-3">

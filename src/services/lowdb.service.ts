@@ -3,10 +3,14 @@ import { JSONFile } from 'lowdb/node'
 import { v4 as uuid } from 'uuid'
 
 type User = {
-  id: string
-  username: string
-  email: string
-}
+  id: string;
+  institutionId?: string;
+  institutionName?: string;
+  patientName?: string;
+  walletAddress: string;
+  type: 'hospital' | 'patient';
+  createdAt: string;
+};
 
 type Data = {
   users: User[]
@@ -22,18 +26,25 @@ const save = async () => await db.write()
 
 export const getAllUsers = (): User[] => db.data!.users
 
-export const getUserByName = (username: string): User | undefined =>
-  db.data!.users.find(u => u.username === username)
+export const getUserByWalletAddress = (walletAddress: string): User | undefined =>
+  db.data!.users.find(u => u.walletAddress === walletAddress)
 
 export const getUserById = (id: string): User | undefined =>
   db.data!.users.find(u => u.id === id)
 
-export const addUser = async (user: { username: string; email: string }): Promise<User> => {
-  const newUser: User = { id: uuid(), ...user }
-  db.data!.users.push(newUser)
-  await save()
-  return newUser
-}
+export const addUser = async (user: {
+  institutionId?: string;
+  institutionName?: string;
+  patientName?: string;
+  walletAddress: string;
+  type: 'hospital' | 'patient';
+  createdAt: string;
+}): Promise<User> => {
+  const newUser: User = { id: uuid(), ...user };
+  db.data!.users.push(newUser);
+  await save();
+  return newUser;
+};
 
 export const deleteUser = async (id: string): Promise<User | null> => {
   const index = db.data!.users.findIndex(u => u.id === id)

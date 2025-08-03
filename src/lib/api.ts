@@ -12,6 +12,10 @@ export const API_CONFIG = {
     SUBMIT_TRANSACTION: '/hedera/submit-transaction',
     UPLOAD_MEDICAL_RECORD: '/dhis/medical-record',
 
+    // User endpoints
+    SIGNUP: '/user/signup',
+    LOGIN: '/user/login',
+
     // Legacy endpoints (keep for fallback)
     GET_NFTS: '/hedera/nft',
     GET_NFT_BY_ID: '/hedera/nft',

@@ -39,6 +39,14 @@ export const getConnectedAccountIds = async () => {
   return hc.connectedAccountIds;
 };
 
+export const disconnectHashConnect = async () => {
+  if (hc) {
+    hc.disconnect();
+    hc = null;
+    hcInitPromise = null;
+  }
+};
+
 export const executeTransaction = async (accountIdForSigning: AccountId | string, trans: Transaction) => {
   const accountIds = await getConnectedAccountIds();
   if (!accountIds) {

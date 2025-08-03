@@ -1,3 +1,5 @@
+'use client';
+
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -15,6 +17,9 @@ import {
   LogOut
 } from "lucide-react";
 import Link from "next/link";
+import { useStore } from "@/store/store";
+import { useRouter } from "next/navigation";
+import { disconnectHashConnect } from "@/services/hashconnect";
 
 interface StatsCard {
   title: string;
@@ -33,6 +38,8 @@ interface RecentActivity {
 }
 
 const HospitalDashboard = () => {
+    const router = useRouter();
+      const {user, setUser} = useStore();
   const stats: StatsCard[] = [
     {
       title: "Total Records",
@@ -105,6 +112,12 @@ const HospitalDashboard = () => {
     }
   };
 
+  const handleLogout = () => {
+    disconnectHashConnect();
+    setUser(null);
+    router.push("/login");
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case "completed": return "bg-green-500/20 text-green-700 border-green-500/30";
@@ -125,15 +138,12 @@ const HospitalDashboard = () => {
                 <Building2 className="h-6 w-6 text-white" />
               </div>
               <div>
-                <h1 className="text-xl font-bold">General Hospital</h1>
+                <h1 className="text-xl font-bold">{user?.institutionName || user?.name || "Institution"}</h1>
                 <p className="text-sm text-muted-foreground">Healthcare Provider Dashboard</p>
               </div>
             </div>
             <div className="flex items-center gap-4">
-              <Button asChild variant="ghost">
-                <Link href="/">Patient Portal</Link>
-              </Button>
-              <Button asChild variant="outline">
+              <Button onClick={handleLogout} asChild variant="outline">
                 <Link href="/hospital-login">
                   <LogOut className="h-4 w-4 mr-2" />
                   Logout
@@ -261,21 +271,6 @@ const HospitalDashboard = () => {
                 <Button asChild size="sm" variant="outline" className="w-full">
                   <Link href="/hospital-access-request">
                     Request Access
-                    <ArrowRight className="h-4 w-4 ml-2" />
-                  </Link>
-                </Button>
-              </div>
-              <div className="border rounded-lg p-4">
-                <h4 className="font-medium mb-2 flex items-center gap-2">
-                  <Users className="h-4 w-4" />
-                  Patient Portal
-                </h4>
-                <p className="text-sm text-muted-foreground mb-3">
-                  Switch to patient view to manage personal health records
-                </p>
-                <Button asChild size="sm" variant="outline" className="w-full">
-                  <Link href="/">
-                    Patient Portal
                     <ArrowRight className="h-4 w-4 ml-2" />
                   </Link>
                 </Button>

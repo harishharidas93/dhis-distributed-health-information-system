@@ -1,62 +1,82 @@
+/* eslint-disable */
 'use client';
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
+import { useSignup } from '@/services/user.service';
+import { useStore } from "@/store/store";
+import { userAPI } from "@/lib/api/user";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { User, Wallet, ArrowRight, Shield } from "lucide-react";
 import { useRouter } from "next/navigation";
 import heroImage from "@/assets/healthcare-hero.jpg";
 import Link from "next/link";
+import { getConnectedAccountIds, getHashConnect } from '@/services/hashconnect';
 
-const Login = () => {
-  const [credentials, setCredentials] = useState({
-    username: "",
-  });
-  const [isLoading, setIsLoading] = useState(false);
+const Signup = () => {
+  // Remove isLoading, use mutation.isPending instead
+  const [name, setName] = useState("");
+  const [privateKey, setPrivateKey] = useState("");
   const { toast } = useToast();
   const router = useRouter();
+  const { walletAddress, setUser, setWalletAddress } = useStore();
+  const isWalletConnected = !!walletAddress;
   
-  const handleEmailLogin = async (e: React.FormEvent) => {
+  useEffect(() => {
+    // Only trigger signup if walletAddress is set and form fields are filled
+    if (walletAddress && name && privateKey) {
+      signupMutation.mutate(
+        { patientName: name, walletAddress, type: "patient", privateKey },
+        {
+          onSuccess: (user) => {
+            setUser(user);
+            toast({
+              title: "Signup Successful",
+              description: `Welcome, ${user.name}`,
+            });
+            router.push("/dashboard");
+          },
+          onError: (error: any) => {
+            toast({
+              title: "Signup Failed",
+              description: error?.message || "An error occurred during signup.",
+              variant: "destructive",
+            });
+          },
+        }
+      );
+    }
+  }, [walletAddress, name, privateKey]);
+
+  const handleWalletConnection = async () => {
+    const hc = await getHashConnect();
+    // TODO: may not be needed, checks if hc is already initialized
+    // await getInitPromise();
+    if (isWalletConnected) {
+      const connectedAccountIds = await getConnectedAccountIds();
+      if (connectedAccountIds.length > 0) {
+        hc.disconnect();
+      }
+    } else {
+      hc.openPairingModal();
+    }
+  };
+
+  const signupMutation = useSignup();
+  const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!credentials.username) {
+    if (!name || !privateKey) {
       toast({
-        title: "Missing Credentials",
-        description: "Please enter your username.",
+        title: "Missing Information",
+        description: "Please fill all required fields.",
         variant: "destructive",
       });
       return;
     }
-
-    setIsLoading(true);
-    
-    // Simulate login process
-    setTimeout(() => {
-      toast({
-        title: "Login Successful",
-        description: "Welcome to dHIS Patient Portal",
-      });
-      setIsLoading(false);
-      router.push("/dashboard");
-    }, 2000);
-  };
-
-  const handleWalletLogin = async () => {
-    setIsLoading(true);
-    
-    // Simulate wallet connection
-    setTimeout(() => {
-      toast({
-        title: "Wallet Connected",
-        description: "Successfully connected to your crypto wallet",
-      });
-      setIsLoading(false);
-      router.push("/dashboard");
-    }, 2000);
+    // Connect wallet first; when walletAddress is set, useEffect will trigger signup
+    handleWalletConnection();
   };
 
   return (
@@ -100,32 +120,42 @@ const Login = () => {
               <div className="w-16 h-16 bg-gradient-primary rounded-full flex items-center justify-center mx-auto mb-4">
                 <User className="h-8 w-8 text-white" />
               </div>
-              <CardTitle className="text-2xl">Patient Signup</CardTitle>
+              <CardTitle className="text-2xl">Sign Up</CardTitle>
               <CardDescription>
-                Create your account to take control of your health data
+                Create your account as a patient or hospital
               </CardDescription>
             </CardHeader>
             <CardContent>
               {/* Login Method Toggle */}
 
-              <form onSubmit={handleEmailLogin} className="space-y-4">
+              <form onSubmit={handleSignup} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="username">Username</Label>
-                  <Input
-                    id="username"
+                  <label htmlFor="patientName" className="block text-sm font-medium">Name</label>
+                  <input
+                    id="patientName"
                     type="text"
-                    placeholder="Enter your username"
-                    value={credentials.username}
-                    onChange={(e) =>
-                      setCredentials({ ...credentials, username: e.target.value })
-                    }
-                    required
+                    className="w-full border rounded px-3 py-2"
+                    placeholder="Enter your name"
+                    value={name}
+                    onChange={e => setName(e.target.value)}
                   />
                 </div>
-              </form>
-              <div className="space-y-4 mt-4">
-                <Button onClick={handleWalletLogin} className="w-full" disabled={isLoading}>
-                  {isLoading ? (
+                <div className="space-y-2">
+                  <label htmlFor="privateKey" className="block text-sm font-medium">Private Key</label>
+                  <input
+                    id="privateKey"
+                    type="password"
+                    className="w-full border rounded px-3 py-2"
+                    placeholder="Enter a private key"
+                    value={privateKey}
+                    onChange={e => setPrivateKey(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    This key will be used whenever you need to allow hospital access to a record.
+                  </p>
+                </div>
+                <Button type="submit" className="w-full" disabled={signupMutation.isPending}>
+                  {signupMutation.isPending ? (
                     <>
                       <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
                       Signing up...
@@ -133,16 +163,29 @@ const Login = () => {
                   ) : (
                     <>
                       <Wallet className="h-4 w-4 mr-2" />
-                      Signup using wallet
+                      Sign Up with Wallet
                     </>
                   )}
                 </Button>
+              </form>
+
+              {/* <Separator /> */}
+              <div className="mt-6">
+                <Separator />
+                <div className="text-center mt-4">
+                  <p className="text-sm text-muted-foreground">
+                    Already have an account?{" "}
+                    <Link href={"/login"}>
+                      <Button variant="link" className="p-0 h-auto font-medium">
+                        Sign in
+                      </Button>
+                    </Link>
+                  </p>
+                </div>
               </div>
 
-              <Separator />
-
               {/* Security Notice */}
-              <div className="mt-6 pt-4 border-t">
+              <div className="mt-4 pt-4 border-t">
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Shield className="h-4 w-4 text-primary" />
                   <span>Your data is encrypted and secured with blockchain technology</span>
@@ -160,4 +203,4 @@ const Login = () => {
   );
 };
 
-export default Login;
+export default Signup;

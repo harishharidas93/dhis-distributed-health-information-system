@@ -1,13 +1,23 @@
+'use client';
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Upload, FileText, Shield, Users, Lock, Activity } from "lucide-react";
 import Link from "next/link";
+import { useStore } from "@/store/store";
+import { useRouter } from "next/navigation";
+import { disconnectHashConnect } from "@/services/hashconnect";
 
 const Dashboard = () => {
-  // Mock DID for demonstration
-  const userDID = "did:hedera:testnet:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK";
-  
+  const router = useRouter();
+  const {user, setUser} = useStore();
+  const handleLogout = () => {
+    disconnectHashConnect();
+    setUser(null);
+    router.push("/login");
+  };
+
   return (
     <div className="min-h-screen bg-background">
       {/* Navigation Header */}
@@ -26,7 +36,7 @@ const Dashboard = () => {
               <Link href="/access-requests" className="text-muted-foreground hover:text-primary transition-colors">Access Requests</Link>
               <Link href="/emergency-access" className="text-muted-foreground hover:text-primary transition-colors">Emergency Access</Link>
               <Link href="/profile" className="text-muted-foreground hover:text-primary transition-colors">Profile</Link>
-              <Button variant="outline" size="sm">Logout</Button>
+              <Button onClick={handleLogout} variant="outline" size="sm">Logout</Button>
             </nav>
           </div>
         </div>
@@ -35,11 +45,13 @@ const Dashboard = () => {
       <div className="container mx-auto px-4 py-8">
         {/* Welcome Section */}
         <div className="mb-8">
-          <h2 className="text-3xl font-bold text-foreground mb-2">Welcome Back!</h2>
+          <h2 className="text-3xl font-bold text-foreground mb-2">
+            Welcome Back{user?.patientName ? `, ${user.patientName}` : ""}!
+          </h2>
           <div className="flex items-center space-x-2">
             <span className="text-muted-foreground">Your DID:</span>
             <Badge variant="secondary" className="font-mono text-xs">
-              {userDID.substring(0, 30)}...
+              {user?.did?.substring(0, 30)}...
             </Badge>
             <Lock className="h-4 w-4 text-success" />
           </div>

@@ -1,56 +1,90 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { getConnectedAccountIds, getHashConnect } from '@/services/hashconnect';
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
-import { Building2, Shield, Users, ArrowRight, Wallet, Mail } from "lucide-react";
+import { useSignup } from "@/services/user.service";
+import { useStore } from "@/store/store";
+import { Building2, Shield, Users, ArrowRight, Wallet } from "lucide-react";
 import Link from "next/link";
 import heroImage from "@/assets/healthcare-hero.jpg";
 
-const HospitalLogin = () => {
-  const [credentials, setCredentials] = useState({
+const HospitalSignup = () => {
+  // Removed unused isLoading state
+  const [form, setForm] = useState({
     institutionId: "",
-    password: "",
+    institutionName: "",
+    privateKey: "",
   });
-  const [isLoading, setIsLoading] = useState(false);
-  const [loginMethod, setLoginMethod] = useState<"email" | "wallet">("email");
+  const router = useRouter();
   const { toast } = useToast();
+  const signupMutation = useSignup();
+  const {setUser, walletAddress} = useStore();
+  const isWalletConnected = !!walletAddress;
+  
+  useEffect(() => {
+    if (walletAddress) {
+      signupMutation.mutate(
+        {
+          institutionId: form.institutionId,
+          institutionName: form.institutionName,
+          walletAddress,
+          type: "hospital",
+          privateKey: form.privateKey,
+        },
+        {
+          onSuccess: (data) => {
+            setUser(data);
+            toast({
+              title: "Signup Successful",
+              description: `Institution ${data.name} registered with dHIS.`,
+            });
+            router.push("/hospital-dashboard");
+          },
+          onError: (error: any) => {
+            let description = "An error occurred during signup.";
+            if (error?.response?.data?.error) {
+              description = error.response.data.error;
+            } else if (error?.message) {
+              description = error.message;
+            }
+            toast({
+              title: "Signup Failed",
+              description,
+              variant: "destructive",
+            });
+          },
+        }
+      );
+    }
+  }, [walletAddress]);
 
-  const handleEmailLogin = async (e: React.FormEvent) => {
+  const handleWalletSignup = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!credentials.institutionId || !credentials.password) {
+    if (!form.institutionId || !form.institutionName || !form.privateKey) {
       toast({
-        title: "Missing Credentials",
-        description: "Please enter both Institution ID and password.",
+        title: "Missing Information",
+        description: "Please enter Institution ID, Institution Name, and Private Key.",
         variant: "destructive",
       });
       return;
     }
-    setIsLoading(true);
-    setTimeout(() => {
-      toast({
-        title: "Login Successful",
-        description: "Welcome to dHIS Healthcare Portal",
-      });
-      setIsLoading(false);
-      window.location.href = "/hospital-dashboard";
-    }, 2000);
-  };
-
-  const handleWalletLogin = async () => {
-    setIsLoading(true);
-    setTimeout(() => {
-      toast({
-        title: "Wallet Connected",
-        description: "Successfully connected to healthcare institution wallet",
-      });
-      setIsLoading(false);
-      window.location.href = "/hospital-dashboard";
-    }, 2000);
+    // Connect wallet first; when walletAddress is set, useEffect will trigger signup
+    const hc = await getHashConnect();
+    if (isWalletConnected) {
+      const connectedAccountIds = await getConnectedAccountIds();
+      if (connectedAccountIds.length > 0) {
+        hc.disconnect();
+      }
+    } else {
+      hc.openPairingModal();
+    }
   };
 
   return (
@@ -88,112 +122,79 @@ const HospitalLogin = () => {
               <div className="w-16 h-16 bg-gradient-primary rounded-full flex items-center justify-center mx-auto mb-4">
                 <Building2 className="h-8 w-8 text-white" />
               </div>
-              <CardTitle className="text-2xl">Healthcare Institution Login</CardTitle>
+              <CardTitle className="text-2xl">Institution Signup</CardTitle>
               <CardDescription>
-                Access the dHIS platform to manage patient records and healthcare data
+                Register your healthcare institution to access dHIS features and manage patient records securely.
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {/* Login Method Toggle */}
-              <div className="flex gap-2 mb-6">
-                <Button
-                  type="button"
-                  variant={loginMethod === "email" ? "default" : "outline"}
-                  onClick={() => setLoginMethod("email")}
-                  className="flex-1 gap-2"
-                >
-                  <Mail className="h-4 w-4" />
-                  Institution ID
-                </Button>
-                <Button
-                  type="button"
-                  variant={loginMethod === "wallet" ? "default" : "outline"}
-                  onClick={() => setLoginMethod("wallet")}
-                  className="flex-1 gap-2"
-                >
-                  <Wallet className="h-4 w-4" />
-                  Wallet
-                </Button>
-              </div>
-              {loginMethod === "email" ? (
-                <form onSubmit={handleEmailLogin} className="space-y-4">
+              <form className="space-y-4" onSubmit={handleWalletSignup}>
+                <div className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="institutionId">Institution ID</Label>
                     <Input
                       id="institutionId"
                       type="text"
-                      placeholder="Enter your institution ID"
-                      value={credentials.institutionId}
-                      onChange={(e) =>
-                        setCredentials({ ...credentials, institutionId: e.target.value })
-                      }
+                      placeholder="Enter institution ID"
+                      value={form.institutionId}
+                      onChange={e => setForm(f => ({ ...f, institutionId: e.target.value }))}
                       required
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="password">Password</Label>
+                    <Label htmlFor="institutionName">Institution Name</Label>
                     <Input
-                      id="password"
-                      type="password"
-                      placeholder="Enter your password"
-                      value={credentials.password}
-                      onChange={(e) =>
-                        setCredentials({ ...credentials, password: e.target.value })
-                      }
+                      id="institutionName"
+                      type="text"
+                      placeholder="Enter institution name"
+                      value={form.institutionName}
+                      onChange={e => setForm(f => ({ ...f, institutionName: e.target.value }))}
                       required
                     />
                   </div>
-                  <Button type="submit" className="w-full" disabled={isLoading}>
-                    {isLoading ? (
-                      <>
-                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-                        Signing In...
-                      </>
-                    ) : (
-                      <>
-                        <Mail className="h-4 w-4 mr-2" />
-                        Sign In with Institution ID
-                      </>
-                    )}
-                  </Button>
-                </form>
-              ) : (
-                <div className="space-y-4">
-                  <div className="text-center p-6 border-2 border-dashed border-border rounded-lg">
-                    <Wallet className="h-12 w-12 text-primary mx-auto mb-4" />
-                    <h3 className="font-medium mb-2">Connect Institution Wallet</h3>
-                    <p className="text-sm text-muted-foreground mb-4">
-                      Connect your institution&apos;s crypto wallet for secure access
+
+                  <div className="space-y-2">
+                    <Label htmlFor="privateKey">Private Key</Label>
+                    <Input
+                      id="privateKey"
+                      type="password"
+                      className="w-full border rounded px-3 py-2"
+                      placeholder="Enter a private key"
+                      value={form.privateKey}
+                      onChange={e => setForm(f => ({ ...f, privateKey: e.target.value }))}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      This key will be used whenever you need to allow hospital access to a record.
                     </p>
                   </div>
-                  <Button onClick={handleWalletLogin} className="w-full" disabled={isLoading}>
-                    {isLoading ? (
+                  <Button type="submit" className="w-full" disabled={signupMutation.isPending}>
+                    {signupMutation.isPending ? (
                       <>
                         <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-                        Connecting...
+                        Registering...
                       </>
                     ) : (
                       <>
                         <Wallet className="h-4 w-4 mr-2" />
-                        Connect Wallet
+                        Sign Up with Wallet
                       </>
                     )}
                   </Button>
                 </div>
-              )}
+              </form>
               <div className="mt-6">
                 <Separator />
                 <div className="text-center mt-4">
                   <p className="text-sm text-muted-foreground">
-                    Need institutional access?{" "}
-                    <Button variant="link" className="p-0 h-auto font-medium">
-                      Contact administrator
+                    Already have an account?{' '}
+                    <Button asChild variant="link" className="p-0 h-auto font-medium">
+                      <Link href="/hospital-login">Login</Link>
                     </Button>
                   </p>
                 </div>
               </div>
               {/* Features Overview */}
-              <div className="mt-8 pt-6 border-t">
+              <div className="mt-4 pt-6 border-t">
                 <h3 className="font-medium mb-4 text-center">Platform Features</h3>
                 <div className="space-y-3 text-sm">
                   <div className="flex items-center gap-3">
@@ -221,4 +222,4 @@ const HospitalLogin = () => {
   );
 };
 
-export default HospitalLogin;
+export default HospitalSignup;

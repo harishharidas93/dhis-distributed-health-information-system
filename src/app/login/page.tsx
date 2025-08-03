@@ -1,6 +1,9 @@
 'use client';
 
-import React, { useState } from "react";
+import React, { useEffect } from "react";
+import { useSignIn } from '@/services/user.service';
+import { getConnectedAccountIds, getHashConnect } from '@/services/hashconnect';
+import { useStore } from "@/store/store";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
@@ -11,22 +14,48 @@ import heroImage from "@/assets/healthcare-hero.jpg";
 import Link from "next/link";
 
 const Login = () => {
-  const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
   const router = useRouter();
-  
+  const {setUser, walletAddress} = useStore();
+  const isWalletConnected = !!walletAddress;
+
+  const signInMutation = useSignIn();
+
+  useEffect(() => {
+    if (walletAddress) {
+      signInMutation.mutate(
+        { walletAddress, type: "patient" },
+        {
+          onSuccess: (user) => {
+            setUser(user);
+            toast({
+              title: "Login Successful",
+              description: `Welcome, ${user.patientName}`,
+            });
+            router.push("/dashboard");
+          },
+          onError: (error: any) => {
+            toast({
+              title: "Login Failed",
+              description: error?.message || "An error occurred during login.",
+              variant: "destructive",
+            });
+          },
+        }
+      );
+    }
+  }, [walletAddress]);
+
   const handleWalletLogin = async () => {
-    setIsLoading(true);
-    
-    // Simulate wallet connection
-    setTimeout(() => {
-      toast({
-        title: "Wallet Connected",
-        description: "Successfully connected to your crypto wallet",
-      });
-      setIsLoading(false);
-      router.push("/dashboard");
-    }, 2000);
+    const hc = await getHashConnect();
+    if (isWalletConnected) {
+      const connectedAccountIds = await getConnectedAccountIds();
+      if (connectedAccountIds.length > 0) {
+        hc.disconnect();
+      }
+    } else {
+      hc.openPairingModal();
+    }
   };
 
   return (
@@ -86,12 +115,11 @@ const Login = () => {
                     Connect your crypto wallet to access your health records securely
                   </p>
                 </div>
-
-                <Button onClick={handleWalletLogin} className="w-full" disabled={isLoading}>
-                  {isLoading ? (
+                <Button onClick={handleWalletLogin} className="w-full" disabled={signInMutation.isPending}>
+                  {signInMutation.isPending ? (
                     <>
                       <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-                      Connecting...
+                      Signing in...
                     </>
                   ) : (
                     <>

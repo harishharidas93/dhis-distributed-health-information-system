@@ -1,4 +1,17 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { userAPI, SignupPayload, SignupResponse, LoginPayload } from '@/lib/api/user';
+// Login React Query Hook
+export const useSignIn = () => {
+  return useMutation<SignupResponse, unknown, LoginPayload>({
+    mutationFn: userAPI.login,
+  });
+};
+// Signup React Query Hook
+export const useSignup = () => {
+  return useMutation<SignupResponse, unknown, SignupPayload>({
+    mutationFn: userAPI.signup,
+  });
+};
 import { apiClient, API_CONFIG } from '@/lib/api';
 import { Transaction } from '@hashgraph/sdk';
 import { Buffer } from 'buffer';
