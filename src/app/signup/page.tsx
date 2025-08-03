@@ -3,6 +3,8 @@
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { User, Wallet, ArrowRight, Shield } from "lucide-react";
@@ -11,10 +13,38 @@ import heroImage from "@/assets/healthcare-hero.jpg";
 import Link from "next/link";
 
 const Login = () => {
+  const [credentials, setCredentials] = useState({
+    username: "",
+  });
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
   const router = useRouter();
   
+  const handleEmailLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!credentials.username) {
+      toast({
+        title: "Missing Credentials",
+        description: "Please enter your username.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsLoading(true);
+    
+    // Simulate login process
+    setTimeout(() => {
+      toast({
+        title: "Login Successful",
+        description: "Welcome to dHIS Patient Portal",
+      });
+      setIsLoading(false);
+      router.push("/dashboard");
+    }, 2000);
+  };
+
   const handleWalletLogin = async () => {
     setIsLoading(true);
     
@@ -70,51 +100,46 @@ const Login = () => {
               <div className="w-16 h-16 bg-gradient-primary rounded-full flex items-center justify-center mx-auto mb-4">
                 <User className="h-8 w-8 text-white" />
               </div>
-              <CardTitle className="text-2xl">Patient Login</CardTitle>
+              <CardTitle className="text-2xl">Patient Signup</CardTitle>
               <CardDescription>
-                Access your health records and manage your medical data securely
+                Create your account to take control of your health data
               </CardDescription>
             </CardHeader>
             <CardContent>
               {/* Login Method Toggle */}
 
-              <div className="space-y-4">
-                <div className="text-center p-6 border-2 border-dashed border-border rounded-lg">
-                  <Wallet className="h-12 w-12 text-primary mx-auto mb-4" />
-                  <h3 className="font-medium mb-2">Connect Your Wallet</h3>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Connect your crypto wallet to access your health records securely
-                  </p>
+              <form onSubmit={handleEmailLogin} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="username">Username</Label>
+                  <Input
+                    id="username"
+                    type="text"
+                    placeholder="Enter your username"
+                    value={credentials.username}
+                    onChange={(e) =>
+                      setCredentials({ ...credentials, username: e.target.value })
+                    }
+                    required
+                  />
                 </div>
-
+              </form>
+              <div className="space-y-4 mt-4">
                 <Button onClick={handleWalletLogin} className="w-full" disabled={isLoading}>
                   {isLoading ? (
                     <>
                       <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-                      Connecting...
+                      Signing up...
                     </>
                   ) : (
                     <>
                       <Wallet className="h-4 w-4 mr-2" />
-                      Connect Wallet
+                      Signup using wallet
                     </>
                   )}
                 </Button>
               </div>
 
-              <div className="mt-6">
-                <Separator />
-                <div className="text-center mt-4">
-                  <p className="text-sm text-muted-foreground">
-                    Don&apos;t have an account?{" "}
-                    <Link href={"/signup"}>
-                      <Button variant="link" className="p-0 h-auto font-medium">
-                        Sign up for free
-                      </Button>
-                    </Link>
-                  </p>
-                </div>
-              </div>
+              <Separator />
 
               {/* Security Notice */}
               <div className="mt-6 pt-4 border-t">
