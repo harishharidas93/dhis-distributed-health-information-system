@@ -12,6 +12,11 @@ export const config = {
     accountId: process.env.HEDERA_ACCOUNT_ID || '',
     privateKey: process.env.HEDERA_PRIVATE_KEY || '',
     mirrorNodeUrl: process.env.HEDERA_MIRROR_NODE_URL || 'https://testnet.mirrornode.hedera.com',
+    hfsKey: {
+      publicKey: process.env.HEDERA_HFS_PUBLIC_KEY || '',
+      privateKey: process.env.HEDERA_HFS_PRIVATE_KEY || '',
+    },
+    hcsTopicId: 'test',
   },
   
   // API Configuration
