@@ -9,8 +9,7 @@ import { toast } from '@/components/ui/use-toast';
 export interface NFTData {
   name: string;
   description: string;
-  blockchain: string;
-  collection?: { id: string; name: string } | null; // Optional collection object
+  collection?: string | null; // Optional collection object
   image?: File;
   walletAddress: string;
   timestamp: string;
@@ -35,7 +34,7 @@ export interface NFTResponse {
   id: string;
   name: string;
   description: string;
-  collection: string;
+  collection?: string | null;
   imageUrl?: string;
   transactionHash?: string;
   deleted: boolean;
@@ -70,16 +69,14 @@ export const nftAPI = {
     const formData = new FormData();
     formData.append('name', nftData.name);
     formData.append('description', nftData.description);
-    formData.append('blockchain', nftData.blockchain);
     formData.append('walletAddress', nftData.walletAddress);
     formData.append('timestamp', nftData.timestamp);
     if (nftData.collection) {
-      formData.append('collectionId', nftData.collection.id);
-      formData.append('collectionName', nftData.collection.name);
+      formData.append('collectionId', nftData.collection);
     }
-    if (nftData.image) {
-      formData.append('image', nftData.image);
-    }
+    // if (nftData.image) {
+    //   formData.append('image', nftData.image);
+    // }
 
     const response = await apiClient.put(API_CONFIG.ENDPOINTS.MINT_NFT, formData, {
       headers: {

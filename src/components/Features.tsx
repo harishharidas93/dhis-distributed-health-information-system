@@ -1,5 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Shield, Database, Key, Zap, Users, FileText, Coins } from "lucide-react";
+import { Shield, Database, Users, FileText, Coins } from "lucide-react";
 
 const features = [
   {
@@ -19,12 +19,6 @@ const features = [
     title: "Private & Secure Access Control",
     description: "Military-grade AES-256 encryption with granular permission controls. You decide who sees what, when.",
     gradient: "from-security-purple to-privacy-indigo"
-  },
-  {
-    icon: Zap,
-    title: "Emergency Access with Smart Consent",
-    description: "Pre-authorized emergency access through smart contracts ensures life-saving care without compromising privacy.",
-    gradient: "from-destructive to-red-400"
   },
   {
     icon: Users,

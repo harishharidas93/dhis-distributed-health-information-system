@@ -1,3 +1,63 @@
+import { AccessRequestPayload } from "@/types/accessRequest";
+
+export const useFetchAccessRequests = (walletAddress: string, userDid: string, type: string = 'request') => {
+  return useQuery({
+    queryKey: ['accessRequests', walletAddress, userDid, type],
+    queryFn: () => fetchAccessRequests({ walletAddress, userDid, type }),
+    enabled: !!walletAddress && !!userDid,
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
+};
+
+export const useGrantAccessRequest = () => {
+  return useMutation({
+    mutationFn: grantAccessRequest,
+  });
+};
+
+export const useRejectAccessRequest = () => {
+  return useMutation({
+    mutationFn: rejectAccessRequest,
+  });
+};
+export async function fetchAccessRequests({ walletAddress, userDid, type }: { walletAddress: string; userDid: string; type: string }) {
+  const res = await fetch(`/api/access-requests?walletAddress=${encodeURIComponent(walletAddress)}&userDid=${encodeURIComponent(userDid)}&type=${encodeURIComponent(type)}`);
+  if (!res.ok) throw new Error('Failed to fetch access requests');
+  return await res.json();
+}
+
+export async function grantAccessRequest(payload: AccessRequestPayload) {
+  // Example API call to PATCH /api/dhis/medical-record
+  const res = await fetch('/api/access-requests', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  if (!res.ok) throw new Error('Failed to grant access');
+  return await res.json();
+}
+
+export async function rejectAccessRequest(payload: AccessRequestPayload) {
+  const res = await fetch('/api/access-requests', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  if (!res.ok) throw new Error('Failed to reject access');
+  return await res.json();
+}
+// POST Medical Record Access Request
+export const accessRequestByProvider = async (payload: any): Promise<any> => {
+  const response = await apiClient.post('/dhis/medical-record', payload);
+  return response.data;
+};
+
+export const useAccessRequestByProvider = () => {
+  return useMutation({
+    mutationFn: accessRequestByProvider,
+  });
+};
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { userAPI, SignupPayload, SignupResponse, LoginPayload } from '@/lib/api/user';
 // Login React Query Hook
@@ -22,24 +82,22 @@ import { toast } from '@/components/ui/use-toast';
 export interface NFTData {
   name: string;
   description: string;
-  blockchain: string;
-  collection?: { id: string; name: string } | null; // Optional collection object
+  collection?: string | null; // Optional collection object
   image?: File;
   walletAddress: string;
+  metadataCid: string;
   timestamp: string;
 }
 
 export interface MedicalRecord {
   name: string;
   description: string;
-  collection?: { id: string; name: string } | null; // Optional collection object
+  collection?: string | null; // Optional collection object
   document?: File;
 }
 
 export interface CollectionData {
   name: string;
-  blockchain: string;
-  image?: File;
   walletAddress: string;
   timestamp: string;
 }
@@ -55,7 +113,7 @@ export interface NFTResponse {
   id: string;
   name: string;
   description: string;
-  collection: string;
+  collection?: string | null;
   imageUrl?: string;
   transactionHash?: string;
   deleted: boolean;
@@ -91,15 +149,12 @@ export const nftAPI = {
     const formData = new FormData();
     formData.append('name', nftData.name);
     formData.append('description', nftData.description);
-    formData.append('blockchain', nftData.blockchain);
     formData.append('walletAddress', nftData.walletAddress);
     formData.append('timestamp', nftData.timestamp);
+    formData.append('metadataCid', nftData.metadataCid);
     if (nftData.collection) {
-      formData.append('collectionId', nftData.collection.id);
-      formData.append('collectionName', nftData.collection.name);
-    }
-    if (nftData.image) {
-      formData.append('image', nftData.image);
+      formData.append('collectionId', nftData.collection);
+      // formData.append('collectionName', nftData.collection.name);
     }
 
     const response = await apiClient.put(API_CONFIG.ENDPOINTS.MINT_NFT, formData, {
@@ -118,13 +173,13 @@ export const nftAPI = {
     toast({ title: 'NFT minted successfully! 🎉', description: `NFT #${serial} minted.` });
     return { serial, nftReceipt };
   },
-  uploadMedicalRecord: async (medicalRecord: MedicalRecord): Promise<{ serial: string; nftReceipt: any }> => {
+  uploadMedicalRecord: async (medicalRecord: MedicalRecord): Promise<{ metadataCid: string; fileCid: any }> => {
     const formData = new FormData();
     formData.append('name', medicalRecord.name);
     formData.append('description', medicalRecord.description);
     if (medicalRecord.collection) {
-      formData.append('collectionId', medicalRecord.collection.id);
-      formData.append('collectionName', medicalRecord.collection.name);
+      formData.append('collectionId', medicalRecord.collection);
+      // formData.append('collectionName', medicalRecord.collection.name);
     }
     if (medicalRecord.document) {
       formData.append('document', medicalRecord.document);
@@ -164,12 +219,8 @@ export const nftAPI = {
   createCollection: async (collectionData: CollectionData): Promise<{ collectionId: string; receipt: any }> => {
     const formData = new FormData();
     formData.append('name', collectionData.name);
-    formData.append('blockchain', collectionData.blockchain);
     formData.append('walletAddress', collectionData.walletAddress);
     formData.append('timestamp', collectionData.timestamp);
-    if (collectionData.image) {
-      formData.append('image', collectionData.image);
-    }
 
     const response = await apiClient.put(API_CONFIG.ENDPOINTS.CREATE_COLLECTION, formData, {
       headers: {
@@ -231,7 +282,6 @@ export const useCollections = (walletAddress: string) => {
 
 export const useMintNFT = () => {
   const queryClient = useQueryClient();
-  
   return useMutation({
     mutationFn: nftAPI.mintNFT,
     onSuccess: (data, variables) => {

@@ -3,15 +3,36 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Upload, FileText, Shield, Users, Lock, Activity } from "lucide-react";
+import { Upload, FileText, Users, Lock, Activity } from "lucide-react";
 import Link from "next/link";
+import { useEffect } from "react";
 import { useStore } from "@/store/store";
+import { useNFTs } from "@/services/user.service";
 import { useRouter } from "next/navigation";
 import { disconnectHashConnect } from "@/services/hashconnect";
 
 const Dashboard = () => {
   const router = useRouter();
-  const {user, setUser} = useStore();
+  const { user, setUser, walletAddress, setNFTs, setNFTCount, setCollection, nftCount } = useStore();
+  const { data: nftsData } = useNFTs(walletAddress);
+
+  useEffect(() => {
+    if (nftsData) {
+      setNFTs(nftsData);
+      setNFTCount(nftsData.length);
+      if (nftsData.length > 0) {
+        const firstNFT = nftsData[0];
+        setCollection(firstNFT.collection as string);
+      } else {
+        setCollection(null);
+      }
+    } else {
+      setNFTs([]);
+      setNFTCount(0);
+      setCollection(null);
+    }
+  }, [nftsData, setNFTs, setNFTCount]);
+
   const handleLogout = () => {
     disconnectHashConnect();
     setUser(null);
@@ -34,7 +55,6 @@ const Dashboard = () => {
               <Link href="/dashboard" className="text-foreground hover:text-primary transition-colors">Dashboard</Link>
               <Link href="/records" className="text-muted-foreground hover:text-primary transition-colors">My Records</Link>
               <Link href="/access-requests" className="text-muted-foreground hover:text-primary transition-colors">Access Requests</Link>
-              <Link href="/emergency-access" className="text-muted-foreground hover:text-primary transition-colors">Emergency Access</Link>
               <Link href="/profile" className="text-muted-foreground hover:text-primary transition-colors">Profile</Link>
               <Button onClick={handleLogout} variant="outline" size="sm">Logout</Button>
             </nav>
@@ -59,44 +79,36 @@ const Dashboard = () => {
 
         {/* Summary Tiles */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <Card className="bg-gradient-subtle">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Records</CardTitle>
-              <FileText className="h-4 w-4 text-primary" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-primary">12</div>
-              <p className="text-xs text-muted-foreground">
-                NFTs minted and secured
-              </p>
-            </CardContent>
+          <Card className="bg-gradient-subtle hover:bg-muted">
+            <Link href="/records">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Total Records</CardTitle>
+                <FileText className="h-4 w-4 text-primary" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-primary">{nftCount}</div>
+                <p className="text-xs text-muted-foreground">
+                  NFTs minted and secured
+                </p>
+              </CardContent>
+            </Link>
           </Card>
 
-          <Card className="bg-gradient-subtle">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Pending Requests</CardTitle>
-              <Users className="h-4 w-4 text-warning" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-warning">3</div>
-              <p className="text-xs text-muted-foreground">
-                Access requests awaiting approval
-              </p>
-            </CardContent>
+          <Card className="bg-gradient-subtle hover:bg-muted">
+            <Link href="/access-requests">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Pending Requests</CardTitle>
+                <Users className="h-4 w-4 text-warning" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-warning">3</div>
+                <p className="text-xs text-muted-foreground">
+                  Access requests awaiting approval
+                </p>
+              </CardContent>
+            </Link>
           </Card>
 
-          <Card className="bg-gradient-subtle">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Emergency Access</CardTitle>
-              <Shield className="h-4 w-4 text-success" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-success">Active</div>
-              <p className="text-xs text-muted-foreground">
-                2 providers pre-authorized
-              </p>
-            </CardContent>
-          </Card>
         </div>
 
         {/* Quick Actions */}
@@ -146,11 +158,6 @@ const Dashboard = () => {
                 <div className="h-2 w-2 bg-primary rounded-full"></div>
                 <span className="text-sm">Access granted to Dr. Sarah Johnson</span>
                 <span className="text-xs text-muted-foreground ml-auto">1 day ago</span>
-              </div>
-              <div className="flex items-center space-x-3">
-                <div className="h-2 w-2 bg-warning rounded-full"></div>
-                <span className="text-sm">Emergency access activated for City Hospital</span>
-                <span className="text-xs text-muted-foreground ml-auto">3 days ago</span>
               </div>
             </div>
           </CardContent>

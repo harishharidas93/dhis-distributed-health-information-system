@@ -5,9 +5,12 @@ import { PinataSDK } from 'pinata';
 import { config } from '@/config/config';
 import imageProcessor from '@/utils/imageProcessor';
 import crypto from 'crypto';
-import { Readable } from 'stream';
 import { PublicKey, PrivateKey, Client, TopicMessageSubmitTransaction, FileCreateTransaction, Hbar } from '@hashgraph/sdk';
+import mirrorNode from '@/utils/mirrorNode';
+import { hederaClient } from '@/services/hedera.client';
+import { getUserById } from '@/services/lowdb.service';
 
+const client = hederaClient();
 // Setup Pinata
 const pinata = new PinataSDK({
   pinataJwt: config.pinata.jwt,
@@ -27,21 +30,21 @@ const PATIENT_PUBLIC_KEY_HEX = '02d5778d3acaf2e0c98d833e91bb3112b77ddeedf46850d6
 const PATIENT_PRIVATE_KEY_HEX = '3d4f8e48e193f416e44362da7d34f068a5ce8f358a6ab8e2a20d0b9abd9bd853';
 
 // Convert to usable key objects
-const patientPublicKey = PublicKey.fromString(PATIENT_PUBLIC_KEY_HEX);
-const patientPrivateKey = PrivateKey.fromString(PATIENT_PRIVATE_KEY_HEX);
+const patientPublicKey = PublicKey.fromStringECDSA(PATIENT_PUBLIC_KEY_HEX);
+const patientPrivateKey = PrivateKey.fromStringECDSA(PATIENT_PRIVATE_KEY_HEX);
 
 // Initialize Hedera client
-let hederaClient: Client | null = null;
-async function getHederaClient() {
-  if (!hederaClient) {
-    hederaClient = Client.forName(config.hedera.network);
-    hederaClient.setOperator(
-      config.hedera.accountId, 
-      PrivateKey.fromString(config.hedera.privateKey)
-    );
-  }
-  return hederaClient;
-}
+// let hederaClient: Client | null = null;
+// async function getHederaClient() {
+//   if (!hederaClient) {
+//     hederaClient = Client.forName(config.hedera.network);
+//     hederaClient.setOperator(
+//       config.hedera.accountId, 
+//       PrivateKey.fromStringECDSA(config.hedera.privateKey)
+//     );
+//   }
+//   return hederaClient;
+// }
 
 // Helper function to compute ECDH shared secret
 async function computeHederaSharedSecret(privateKey: PrivateKey, publicKey: PublicKey): Promise<Buffer> {
@@ -88,10 +91,12 @@ export async function PUT(request: NextRequest) {
     const authTag = cipher.getAuthTag();
 
     // Generate ephemeral key pair
-    const ephemeralKey = PrivateKey.generateECDSA();
+    const ephemeralKey = PrivateKey.generateED25519();
     const ephemeralPublicKey = ephemeralKey.publicKey;
 
     // Compute shared secret
+    // The shared secret is generated using ECDH (Elliptic Curve Diffie-Hellman). It enables two parties to derive the same secret key without directly sending any secret over the network.
+    // patientPublicKey from did
     const sharedSecret = await computeHederaSharedSecret(ephemeralKey, patientPublicKey);
     
     // Derive decryption key with proper typing
@@ -120,6 +125,10 @@ export async function PUT(request: NextRequest) {
       'encrypted_medical_record.pdf',
       { type: 'application/octet-stream', lastModified: Date.now() }
     );
+
+    if (!payload.patientDID) {
+      payload.patientDID = 'did:hedera:testnet:3AumERAwTJtNV23xW5mvaWJRFUBEk14X8dr3gQfGvpeXLBarYPXGnRPXDU7CgzdS1xR5UuvK3EPiG1DE1RZGhPGP8QUbMkLcSrLGLRv_0.0.6495109';
+    }
 
     // Upload to IPFS
     const fileHash = await pinata.upload.public
@@ -171,6 +180,7 @@ export async function PUT(request: NextRequest) {
       { headers: corsHeaders }
     );
   } catch (error) {
+    console.error('PUT /api/dhis/medical-record error:', error);
     return NextResponse.json(
       {
         success: false,
@@ -185,46 +195,112 @@ export async function PUT(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const { 
-      providerPublicKey,
-      fileCid,
+      nftId,
       reason,
       accessType,
       requestedDuration,
-      providerDID
+      urgency,
+      patientId,
+      instituitionId,
+      requestedAt,
+      requestType, // 'access-request' or 'access-approval' or 'access-revoke' or 'access-reject' or 'access-timed-out'
     } = await request.json();
-
-    if (!providerPublicKey || !fileCid) {
+    if (!nftId) {
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
       );
     }
+    const userDetails = getUserById(patientId);
+    const institutionDetails = getUserById(instituitionId);
+    if (!userDetails || !institutionDetails) {
+      return NextResponse.json(
+        { error: 'Invalid patient or institution ID' },
+        { status: 400 }
+      );
+    }
+    // 1. Fetch NFT details (from mirror node or your NFT API)
+    let nftDetails;
+    try {
+      nftDetails = await mirrorNode.fetchNFTInfo(nftId);
+    } catch (err) {
+      return NextResponse.json({ error: 'Failed to fetch NFT details' }, { status: 500 });
+    }
 
-    const client = await getHederaClient();
+    // 2. Get metadata CID from NFT details
+    let metadataCid;
+    if (nftDetails && nftDetails.metadata) {
+      try {
+        metadataCid = Buffer.from(nftDetails.metadata, 'base64').toString('utf-8');
+      } catch (err) {
+        return NextResponse.json({ error: 'Invalid NFT metadata encoding' }, { status: 500 });
+      }
+    } else {
+      return NextResponse.json({ error: 'NFT metadata not found' }, { status: 404 });
+    }
+
+    // 3. Fetch metadata JSON from Pinata/IPFS
+    let metadataJson;
+    try {
+      const metaRes = await axios.get(`${config.pinata.gatewayUrl}${metadataCid}`);
+      metadataJson = metaRes.data;
+    } catch (err) {
+      return NextResponse.json({ error: 'Failed to fetch NFT metadata JSON' }, { status: 500 });
+    }
+
+    // 5. Get topic id from patientDID (last part after last colon or underscore)
+    let patientTopicId = null;
+    // Split by both colon and underscore, take last segment
+    const didParts = userDetails.did.split(/[:_]/);
+    if (didParts.length > 0) {
+      patientTopicId = didParts[didParts.length - 1];
+    }
+    if (!patientTopicId) {
+      return NextResponse.json({ error: 'Invalid patient DID format' }, { status: 400 });
+    }
+
+    // const client = await getHederaClient();
     const requestId = crypto.randomUUID();
 
     // Submit to HCS
     const message = JSON.stringify({
-      type: 'access-request',
+      requestType,
+      urgency,
+      requestedAt,
       requestId,
-      providerPublicKey,
-      providerDID,
-      fileCid,
+      patientDetails: {
+        id: userDetails.id,
+        name: userDetails.patientName,
+        did: userDetails.did,
+      },
+      nftId,
       reason,
       accessType,
       requestedDuration,
+      institutionDetails: {
+        id: institutionDetails.id,
+        name: institutionDetails.institutionName,
+        did: institutionDetails.did,
+      },
+      recordDetails: {
+        nftId,
+        metadataCid,
+        name: metadataJson.name,
+        description: metadataJson.description,
+      },
       timestamp: new Date().toISOString()
     });
 
     const submitTx = await new TopicMessageSubmitTransaction()
-      .setTopicId(config.hedera.hcsTopicId)
+      .setTopicId(patientTopicId)
       .setMessage(message)
       .execute(client);
 
     return NextResponse.json({
       success: true,
       requestId,
-      transactionId: submitTx.transactionId.toString()
+      transactionId: submitTx.transactionId.toString(),
+      message
     });
 
   } catch (error) {
@@ -254,7 +330,7 @@ export async function PATCH(request: NextRequest) {
     const iv = Buffer.from(metadata.properties.iv, 'hex');
     const authTag = Buffer.from(metadata.properties.authTag, 'hex');
     const encryptedAesKey = Buffer.from(metadata.properties.encryptedAesKey, 'base64');
-    const ephemeralPublicKey = PublicKey.fromString(metadata.properties.ephemeralPublicKey);
+    const ephemeralPublicKey = PublicKey.fromStringECDSA(metadata.properties.ephemeralPublicKey);
     const keyAuthTag = Buffer.from(metadata.properties.keyAuthTag, 'hex');
 
     const sharedSecret = await computeHederaSharedSecret(patientPrivateKey, ephemeralPublicKey);
@@ -277,7 +353,7 @@ export async function PATCH(request: NextRequest) {
     ]);
 
     // 3. Re-encrypt for provider
-    const providerPubKey = PublicKey.fromString(providerPublicKey);
+    const providerPubKey = PublicKey.fromStringECDSA(providerPublicKey);
     const providerSharedSecret = await computeHederaSharedSecret(patientPrivateKey, providerPubKey);
     
     const providerDerivedKey = Buffer.from( 
@@ -298,13 +374,13 @@ export async function PATCH(request: NextRequest) {
     const providerAuthTag = keyCipher.getAuthTag();
 
     // 4. Store encrypted key
-    const client = await getHederaClient();
+    // const client = await getHederaClient();
     let storageLocation;
 
     if (config.hedera.hfsKey) {
       const fileTx = await new FileCreateTransaction()
         .setContents(encryptedForProvider)
-        .setKeys([PublicKey.fromString(config.hedera.hfsKey.publicKey)])
+        .setKeys([PublicKey.fromStringECDSA(config.hedera.hfsKey.publicKey)])
         .execute(client);
         
       const receipt = await fileTx.getReceipt(client);
@@ -379,7 +455,7 @@ export async function GET(request: NextRequest) {
     const keyAuthTag = Buffer.from(metadata.properties.keyAuthTag, 'hex');
 
     // 4. Decrypt with provider's key
-    const providerPubKey = PublicKey.fromString(providerKey);
+    const providerPubKey = PublicKey.fromStringECDSA(providerKey);
     const sharedSecret = await computeHederaSharedSecret(patientPrivateKey, providerPubKey);
     
     // Derive decryption key with proper typing

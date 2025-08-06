@@ -11,12 +11,20 @@ export function splitcertificateId(certificateId: string): { tokenId: string; se
   }
 
   // Handle Hedera token format like "0.0.123456-1"
-  const parts = certificateId.split('-');
-  
-  if (parts.length === 2) {
+  const dashParts = certificateId.split('-');
+  if (dashParts.length === 2) {
     return {
-      tokenId: parts[0],
-      serialNumber: parts[1]
+      tokenId: dashParts[0],
+      serialNumber: dashParts[1]
+    };
+  }
+
+  // Handle format like "1.1.1.1" (tokenId: 1.1.1, serialNumber: 1)
+  const dotParts = certificateId.split('.');
+  if (dotParts.length === 4) {
+    return {
+      tokenId: dotParts.slice(0, 3).join('.'),
+      serialNumber: dotParts[3]
     };
   }
 

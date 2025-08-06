@@ -115,12 +115,26 @@ async function fetchAllNFTs(accountId: string, collectionId?: string, nextLink?:
   return nfts;
 }
 
+async function fetchAllTopicMessages(topicId: string): Promise<any[]> {
+  const url = `/topics/${topicId}/messages`;
+  let allMessages: any[] = [];
+  let nextUrl: string | null = url;
+  while (nextUrl) {
+    const res: any = await axiosInstance.get(nextUrl);
+    const { messages, links } = res.data;
+    allMessages = allMessages.concat(messages);
+    nextUrl = links?.next ? links.next : null;
+  }
+  return allMessages;
+}
+
 const exportedFunctions = {
   fetchAccountInfo,
   fetchTokenInfo,
   fetchNFTInfo,
   fetchNftTransactions,
   fetchAllNFTs,
+  fetchAllTopicMessages,
 };
 
 export default exportedFunctions;

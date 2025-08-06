@@ -10,6 +10,8 @@ import { Badge } from "@/components/ui/badge";
 import { Upload, Lock, FileText, Coins, ArrowLeft, CheckCircle } from "lucide-react";
 import Link from "next/link";
 import { useToast } from "@/hooks/use-toast";
+import { useUploadMedicalRecord, useMintNFT, useCreateCollection } from '@/services/user.service';
+import { useStore } from "@/store/store";
 
 const UploadRecord = () => {
   const [step, setStep] = useState(1);
@@ -21,6 +23,10 @@ const UploadRecord = () => {
   const [nftId, setNftId] = useState("");
   const [cid, setCid] = useState("");
   const { toast } = useToast();
+  const uploadMedicalRecordMutation = useUploadMedicalRecord();
+  const mintNFTMutation = useMintNFT();
+  const createCollectionMutation = useCreateCollection();
+  const { user, collection, setCollection } = useStore();
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -32,30 +38,71 @@ const UploadRecord = () => {
     if (!file || !title) return;
     
     setIsEncrypting(true);
-    // Simulate encryption and IPFS upload
-    setTimeout(() => {
-      setCid("QmX8Y9Z3A1B2C3D4E5F6G7H8I9J0K1L2M3N4O5P6Q7R8S9T");
-      setIsEncrypting(false);
+    const response = await uploadMedicalRecordMutation.mutateAsync({
+        name: title,
+        description,
+        document: file || undefined,
+      });
+      console.log('File uploaded successfully:', response);
+      setCid(response.metadataCid);
       setStep(3);
       toast({
         title: "File Encrypted & Uploaded",
         description: "Your medical record has been securely uploaded to IPFS.",
       });
-    }, 2000);
+    // Simulate encryption and IPFS upload
+    // setTimeout(() => {
+    //   setCid("QmX8Y9Z3A1B2C3D4E5F6G7H8I9J0K1L2M3N4O5P6Q7R8S9T");
+    //   setIsEncrypting(false);
+    //   setStep(3);
+    //   toast({
+    //     title: "File Encrypted & Uploaded",
+    //     description: "Your medical record has been securely uploaded to IPFS.",
+    //   });
+    // }, 2000);
   };
 
   const handleMintNFT = async () => {
+    if (!title || !cid) return;
     setIsMinting(true);
-    // Simulate NFT minting
-    setTimeout(() => {
-      setNftId("dhis-nft-" + Math.random().toString(36).substr(2, 9));
+    try {
+      // If no collection, create one first
+      let collectionId = collection || "";
+      if (!collection) {
+        const newCollectionName = `Health Records - ${user?.patientName || user?.name || "User"}`;
+        const createRes = await createCollectionMutation.mutateAsync({
+          name: newCollectionName,
+          walletAddress: user?.walletAddress as string,
+          timestamp: new Date().toISOString(),
+        });
+        console.log('Collection created:', createRes);
+        collectionId = createRes.collectionId;
+        setCollection(collectionId);
+        toast({ title: "Collection Created", description: `Collection ID: ${collectionId}` });
+      }
+      const response = await mintNFTMutation.mutateAsync({
+        name: title,
+        description: description || "Medical record stored securely",
+        metadataCid: cid,
+        walletAddress: user?.walletAddress as string,
+        timestamp: new Date().toISOString(),
+        collection: collectionId,
+      });
+      setNftId(response.serial);
       setIsMinting(false);
       setStep(4);
       toast({
         title: "NFT Successfully Minted!",
-        description: "Your health record is now tokenized and secured on the blockchain.",
+        description: `Your health record is now tokenized and secured on the blockchain. NFT #${response.serial}`,
       });
-    }, 3000);
+    } catch (error: any) {
+      setIsMinting(false);
+      toast({
+        title: "Minting Failed",
+        description: error?.message || "An error occurred while minting NFT.",
+        variant: "destructive",
+      });
+    }
   };
 
   return (

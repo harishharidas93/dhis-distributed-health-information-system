@@ -38,7 +38,6 @@ const Profile = () => {
               <Link href="/dashboard" className="text-muted-foreground hover:text-primary transition-colors">Dashboard</Link>
               <Link href="/records" className="text-muted-foreground hover:text-primary transition-colors">My Records</Link>
               <Link href="/access-requests" className="text-muted-foreground hover:text-primary transition-colors">Access Requests</Link>
-              <Link href="/emergency-access" className="text-muted-foreground hover:text-primary transition-colors">Emergency Access</Link>
               <Link href="/profile" className="text-foreground hover:text-primary transition-colors">Profile</Link>
               <Button variant="outline" size="sm">Logout</Button>
             </nav>

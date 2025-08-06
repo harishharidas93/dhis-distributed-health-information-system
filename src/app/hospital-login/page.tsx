@@ -30,7 +30,7 @@ const HospitalLogin = () => {
             setUser(user);
             toast({
               title: "Login Successful",
-              description: `Welcome, ${user.name}`,
+              description: `Welcome, ${user.institutionName}`,
             });
             router.push("/hospital-dashboard");
           },
