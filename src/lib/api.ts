@@ -11,6 +11,7 @@ export const API_CONFIG = {
     MINT_NFT: '/hedera/nft',
     SUBMIT_TRANSACTION: '/hedera/submit-transaction',
     UPLOAD_MEDICAL_RECORD: '/dhis/medical-record',
+    ACCESS_REQUESTS: '/access-requests',
 
     // User endpoints
     SIGNUP: '/user/signup',

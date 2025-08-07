@@ -9,70 +9,42 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Search, Eye, Clock, ArrowLeft, Send, FileText } from "lucide-react";
+import { useStore } from "@/store/store";
+import { useAccessRequestByProvider, useHospitalDashboardQueries } from '@/services/user.service';
+import { Eye, Clock, ArrowLeft, Send, FileText, CircleX } from "lucide-react";
+import { AccessRequest, AccessRequestPayload } from "@/types/accessRequest";
 import Link from "next/link";
+import { useSearchParams, useRouter } from "next/navigation";
 
-interface AccessRequest {
-  id: string;
-  patientId: string;
-  patientName: string;
-  recordType: string;
-  reason: string;
-  urgency: "low" | "medium" | "high" | "emergency";
-  requestedAt: string;
-  status: "pending" | "approved" | "rejected" | "active" | "expired";
-  sessionDuration?: number;
-}
+const initialRequestDetails = {
+  patientId: "",
+  nftId: "",
+  reason: "",
+  urgency: "medium" as const,
+  requestedDuration: "60",
+};
 
 const HospitalAccessRequest = () => {
-  const [activeTab, setActiveTab] = useState<"create" | "manage">("create");
-  const [newRequest, setNewRequest] = useState({
-    patientId: "",
-    recordType: "",
-    reason: "",
-    urgency: "medium" as const,
-    sessionDuration: "60",
-  });
+  const { user } = useStore();
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  // Set initial tab based on URL param
+  const initialTab = (searchParams?.get("tab") === "manage") ? "manage" : "create";
+  const [activeTab, setActiveTab] = useState<"create" | "manage">(initialTab);
+  const [newRequest, setNewRequest] = useState(initialRequestDetails);
 
-  const [requests, setRequests] = useState<AccessRequest[]>([
-    {
-      id: "req-001",
-      patientId: "P-2024-001",
-      patientName: "John Doe",
-      recordType: "Medical Imaging",
-      reason: "Emergency consultation required",
-      urgency: "high",
-      requestedAt: "2024-01-15T10:30:00Z",
-      status: "pending",
-    },
-    {
-      id: "req-002",
-      patientId: "P-2024-002",
-      patientName: "Jane Smith",
-      recordType: "Lab Results",
-      reason: "Follow-up treatment planning",
-      urgency: "medium",
-      requestedAt: "2024-01-15T09:15:00Z",
-      status: "approved",
-      sessionDuration: 45,
-    },
-    {
-      id: "req-003",
-      patientId: "P-2024-003",
-      patientName: "Bob Johnson",
-      recordType: "Consultation Notes",
-      reason: "Second opinion",
-      urgency: "low",
-      requestedAt: "2024-01-14T16:20:00Z",
-      status: "active",
-      sessionDuration: 30,
-    },
-  ]);
-
+  const [requests, setRequests] = useState<AccessRequest[]>([]);
+  const {
+    accessRequestsData,
+    pendingRequestsCount,
+    isLoading,
+    isError
+  } = useHospitalDashboardQueries(user?.did || '');
   const { toast } = useToast();
+  const accessRequestMutation = useAccessRequestByProvider();
 
-  const handleSubmitRequest = () => {
-    if (!newRequest.patientId || !newRequest.recordType || !newRequest.reason) {
+  const handleSubmitRequest = async () => {
+    if (!newRequest.patientId || !newRequest.nftId || !newRequest.reason) {
       toast({
         title: "Missing Information",
         description: "Please fill in all required fields.",
@@ -80,28 +52,46 @@ const HospitalAccessRequest = () => {
       });
       return;
     }
-    const request: AccessRequest = {
-      id: `req-${Date.now()}`,
-      patientId: newRequest.patientId,
-      patientName: "Patient Name", // Would be fetched from patient lookup
-      recordType: newRequest.recordType,
-      reason: newRequest.reason,
+    const payload: AccessRequestPayload = {
+      requestType: "access-request",
       urgency: newRequest.urgency,
+      instituitionId: user?.id || "",
       requestedAt: new Date().toISOString(),
-      status: "pending",
+      patientId: newRequest.patientId,
+      nftId: newRequest.nftId,
+      reason: newRequest.reason,
+      requestedDuration: Number(newRequest.requestedDuration) || 60,
     };
-    setRequests([request, ...requests]);
-    setNewRequest({
-      patientId: "",
-      recordType: "",
-      reason: "",
-      urgency: "medium",
-      sessionDuration: "60",
+    try {
+      const response = await accessRequestMutation.mutateAsync(payload);
+      setRequests([response.message, ...requests]);
+      setNewRequest(initialRequestDetails);
+      toast({
+        title: "Access Request Submitted",
+        description: "Your request has been sent to the patient for approval.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Submission Failed",
+        description: error?.message || "Could not submit access request.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const [fileUrl, setFileUrl] = useState<string | null>(null);
+
+  const handleAccess = async (request: AccessRequest) => {
+    const response = await fetch('/api/session', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(request),
     });
-    toast({
-      title: "Access Request Submitted",
-      description: "Your request has been sent to the patient for approval.",
-    });
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    setFileUrl(url);
   };
 
   const getUrgencyColor = (urgency: string) => {
@@ -143,33 +133,41 @@ const HospitalAccessRequest = () => {
         </div>
       </header>
       <div className="container mx-auto px-4 py-8 max-w-6xl">
-        {/* Flow Description */}
-        <Card className="mb-8">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Search className="h-5 w-5" />
-              Flow 2: Record Access Request
-            </CardTitle>
-            <CardDescription>
-              Hospital requests access → patient approves or rejects → session begins and ends
-            </CardDescription>
-          </CardHeader>
-        </Card>
+        {/* Loading State */}
+        {isLoading && (
+          <div className="text-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+            <p className="text-muted-foreground mt-2">Loading access requests...</p>
+          </div>
+        )}
+        {/* Error State */}
+        {isError && (
+          <div className="text-center py-8">
+            <span className="inline-block bg-destructive/10 text-destructive px-4 py-2 rounded mb-2">Failed to load access requests</span>
+          </div>
+        )}
         {/* Tab Navigation */}
         <div className="flex space-x-1 bg-muted p-1 rounded-lg mb-6 w-fit">
           <Button
             variant={activeTab === "create" ? "default" : "ghost"}
             size="sm"
-            onClick={() => setActiveTab("create")}
+            onClick={() => {
+              setActiveTab("create");
+              router.replace("/hospital-access-request?tab=create");
+            }}
           >
             Create Request
           </Button>
           <Button
             variant={activeTab === "manage" ? "default" : "ghost"}
+            disabled={pendingRequestsCount === 0}
             size="sm"
-            onClick={() => setActiveTab("manage")}
+            onClick={() => {
+              setActiveTab("manage");
+              router.replace("/hospital-access-request?tab=manage");
+            }}
           >
-            Manage Requests
+            Manage Requests {pendingRequestsCount > 0 ? `(${pendingRequestsCount})` : ''}
           </Button>
         </div>
         {/* Create Request Tab */}
@@ -198,25 +196,15 @@ const HospitalAccessRequest = () => {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="recordType">Record Type *</Label>
-                  <Select
-                    value={newRequest.recordType}
-                    onValueChange={(value) =>
-                      setNewRequest({ ...newRequest, recordType: value })
+                  <Label htmlFor="nftId">NFT ID *</Label>
+                  <Input
+                    id="nftId"
+                    placeholder="Enter NFT ID"
+                    value={newRequest.nftId}
+                    onChange={(e) =>
+                      setNewRequest({ ...newRequest, nftId: e.target.value })
                     }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select record type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="lab-results">Lab Results</SelectItem>
-                      <SelectItem value="imaging">Medical Imaging</SelectItem>
-                      <SelectItem value="consultation">Consultation Notes</SelectItem>
-                      <SelectItem value="prescription">Prescription</SelectItem>
-                      <SelectItem value="surgery">Surgery Report</SelectItem>
-                      <SelectItem value="all-records">All Records</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="urgency">Urgency Level</Label>
@@ -238,14 +226,14 @@ const HospitalAccessRequest = () => {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="sessionDuration">Requested Session Duration (minutes)</Label>
+                  <Label htmlFor="requestedDuration">Requested Session Duration (minutes)</Label>
                   <Input
-                    id="sessionDuration"
+                    id="requestedDuration"
                     type="number"
                     placeholder="60"
-                    value={newRequest.sessionDuration}
+                    value={newRequest.requestedDuration}
                     onChange={(e) =>
-                      setNewRequest({ ...newRequest, sessionDuration: e.target.value })
+                      setNewRequest({ ...newRequest, requestedDuration: e.target.value })
                     }
                   />
                 </div>
@@ -271,9 +259,21 @@ const HospitalAccessRequest = () => {
                   <li>• Sessions automatically expire after the specified duration</li>
                 </ul>
               </div>
-              <Button onClick={handleSubmitRequest} className="w-full">
-                <Send className="h-4 w-4 mr-2" />
-                Submit Access Request
+              <Button onClick={handleSubmitRequest} className="w-full" disabled={accessRequestMutation.isPending}>
+                {accessRequestMutation.isPending ? (
+                  <span className="flex items-center justify-center">
+                    <svg className="animate-spin h-4 w-4 mr-2 text-muted-foreground" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
+                    </svg>
+                    Submitting...
+                  </span>
+                ) : (
+                  <>
+                    <Send className="h-4 w-4 mr-2" />
+                    Submit Access Request
+                  </>
+                )}
               </Button>
             </CardContent>
           </Card>
@@ -292,40 +292,39 @@ const HospitalAccessRequest = () => {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {requests.map((request) => (
-                  <div key={request.id} className="border rounded-lg p-4">
+                {[...requests, ...accessRequestsData].map((request) => (
+                  <div key={request.requestId} className="border rounded-lg p-4">
                     <div className="flex items-start justify-between mb-3">
                       <div>
-                        <h4 className="font-medium">{request.patientName}</h4>
+                        <h4 className="font-medium">{request.patientDetails.name}</h4>
                         <p className="text-sm text-muted-foreground">
-                          Patient ID: {request.patientId}
+                          Patient ID: {request.patientDetails.id}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          NFT ID: {request.nftId}
                         </p>
                       </div>
                       <div className="flex items-center gap-2">
                         <Badge className={getUrgencyColor(request.urgency)}>
                           {request.urgency}
                         </Badge>
-                        <Badge className={getStatusColor(request.status)}>
+                        <Badge className={getStatusColor(request.status as 'pending' | 'approved' | 'rejected' | 'active' | 'expired')}>
                           {request.status}
                         </Badge>
                       </div>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                       <div>
-                        <p className="text-sm font-medium">Record Type</p>
-                        <p className="text-sm text-muted-foreground">{request.recordType}</p>
-                      </div>
-                      <div>
                         <p className="text-sm font-medium">Requested At</p>
                         <p className="text-sm text-muted-foreground">
                           {new Date(request.requestedAt).toLocaleString()}
                         </p>
                       </div>
-                      {request.sessionDuration && (
+                      {request.requestedDuration && (
                         <div>
                           <p className="text-sm font-medium">Session Time</p>
                           <p className="text-sm text-muted-foreground">
-                            {request.sessionDuration} minutes
+                            {request.requestedDuration} minutes
                           </p>
                         </div>
                       )}
@@ -334,7 +333,7 @@ const HospitalAccessRequest = () => {
                       <p className="text-sm font-medium mb-1">Reason</p>
                       <p className="text-sm text-muted-foreground">{request.reason}</p>
                     </div>
-                    {request.status === "active" && (
+                    {request.status === "approved" && (
                       <div className="bg-blue-500/10 p-3 rounded-md">
                         <div className="flex items-center gap-2">
                           <Clock className="h-4 w-4 text-blue-600" />
@@ -346,15 +345,34 @@ const HospitalAccessRequest = () => {
                       </div>
                     )}
                     {request.status === "approved" && (
-                      <Button size="sm" className="mt-2">
+                      <Button onClick={() => handleAccess(request)} size="sm" className="mt-2">
                         <FileText className="h-4 w-4 mr-2" />
                         Start Session
+                      </Button>
+                    )}
+                    {request.status === "rejected" && (
+                      <div className="text-sm text-destructive">
+                        Your request was rejected by the patient
+                      </div>
+                    )}
+                    {request.status === "pending" && (
+                      <Button size="sm" className="mt-2 bg-gray-500 hover:bg-gray-400">
+                        <CircleX className="h-4 w-4 mr-2" />
+                        Revoke request
                       </Button>
                     )}
                     {request.status === "pending" && (
                       <div className="text-sm text-muted-foreground">
                         Waiting for patient approval...
                       </div>
+                    )}
+                    {fileUrl && (
+                      <iframe
+                        src={fileUrl}
+                        width="100%"
+                        height="800px"
+                        title="Decrypted PDF"
+                      />
                     )}
                   </div>
                 ))}

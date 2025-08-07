@@ -8,6 +8,7 @@ type User = {
   patientName?: string;
   walletAddress: string;
   type: 'hospital' | 'patient';
+  did: string;
   createdAt: string;
 };
 

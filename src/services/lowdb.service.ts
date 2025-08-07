@@ -9,6 +9,7 @@ type User = {
   patientName?: string;
   walletAddress: string;
   type: 'hospital' | 'patient';
+  did: string;
   createdAt: string;
 };
 
@@ -38,6 +39,7 @@ export const addUser = async (user: {
   patientName?: string;
   walletAddress: string;
   type: 'hospital' | 'patient';
+  did: string;
   createdAt: string;
 }): Promise<User> => {
   const newUser: User = { id: uuid(), ...user };
