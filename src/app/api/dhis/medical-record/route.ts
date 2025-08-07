@@ -291,15 +291,30 @@ export async function POST(request: NextRequest) {
       timestamp: new Date().toISOString()
     });
 
-    const submitTx = await new TopicMessageSubmitTransaction()
+    await new TopicMessageSubmitTransaction()
       .setTopicId(patientTopicId)
       .setMessage(message)
       .execute(client);
 
+    // Send to hospital topic (from institutionDetails.did)
+    let hospitalTopicId = null;
+    if (institutionDetails.did) {
+      const instDidParts = institutionDetails.did.split(/[:_]/);
+      if (instDidParts.length > 0) {
+        hospitalTopicId = instDidParts[instDidParts.length - 1];
+      }
+    }
+    let submitTxHospital = null;
+    if (hospitalTopicId) {
+      submitTxHospital = await new TopicMessageSubmitTransaction()
+        .setTopicId(hospitalTopicId)
+        .setMessage(message)
+        .execute(client);
+    }
+
     return NextResponse.json({
       success: true,
       requestId,
-      transactionId: submitTx.transactionId.toString(),
       message
     });
 

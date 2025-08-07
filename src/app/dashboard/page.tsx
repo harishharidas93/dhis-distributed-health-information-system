@@ -5,33 +5,38 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Upload, FileText, Users, Lock, Activity } from "lucide-react";
 import Link from "next/link";
-import { useEffect } from "react";
+import { useMemo } from "react";
 import { useStore } from "@/store/store";
-import { useNFTs } from "@/services/user.service";
+import { useNFTs, useFetchAccessRequests } from "@/services/user.service";
 import { useRouter } from "next/navigation";
 import { disconnectHashConnect } from "@/services/hashconnect";
 
 const Dashboard = () => {
   const router = useRouter();
-  const { user, setUser, walletAddress, setNFTs, setNFTCount, setCollection, nftCount } = useStore();
+  const { 
+    user, 
+    setUser, 
+    walletAddress
+  } = useStore();
+  
   const { data: nftsData } = useNFTs(walletAddress);
+  
+  // Memoize the parameters to prevent unnecessary re-renders
+  const requestParams = useMemo(() => ({
+    walletAddress: user?.walletAddress || '',
+    userDid: user?.did || '',
+    type: 'request' as const
+  }), [user?.walletAddress, user?.did]);
+  
+  const { data: accessRequestsData = [] } = useFetchAccessRequests(
+    requestParams.walletAddress, 
+    requestParams.userDid, 
+    requestParams.type
+  );
 
-  useEffect(() => {
-    if (nftsData) {
-      setNFTs(nftsData);
-      setNFTCount(nftsData.length);
-      if (nftsData.length > 0) {
-        const firstNFT = nftsData[0];
-        setCollection(firstNFT.collection as string);
-      } else {
-        setCollection(null);
-      }
-    } else {
-      setNFTs([]);
-      setNFTCount(0);
-      setCollection(null);
-    }
-  }, [nftsData, setNFTs, setNFTCount]);
+  // Calculate values directly from the data
+  const currentNFTCount = nftsData?.length || 0;
+  const currentPendingCount = accessRequestsData?.filter((req: any) => req.status === 'pending').length || 0;
 
   const handleLogout = () => {
     disconnectHashConnect();
@@ -86,7 +91,7 @@ const Dashboard = () => {
                 <FileText className="h-4 w-4 text-primary" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-primary">{nftCount}</div>
+                <div className="text-2xl font-bold text-primary">{currentNFTCount}</div>
                 <p className="text-xs text-muted-foreground">
                   NFTs minted and secured
                 </p>
@@ -101,7 +106,7 @@ const Dashboard = () => {
                 <Users className="h-4 w-4 text-warning" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-warning">3</div>
+                <div className="text-2xl font-bold text-warning">{currentPendingCount}</div>
                 <p className="text-xs text-muted-foreground">
                   Access requests awaiting approval
                 </p>

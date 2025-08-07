@@ -29,7 +29,6 @@ function getStatusForType(type: string) {
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const typeFilter = searchParams.get('type');
     const userDid = searchParams.get('userDid');
 
     // Get topicId from userDid
@@ -46,7 +45,7 @@ export async function GET(request: NextRequest) {
       try {
         const jsonStr = Buffer.from(msg.message, 'base64').toString('utf-8');
         const data = JSON.parse(jsonStr);
-        return { ...data, timestamp: msg.timestamp };
+        return { ...data, consensus_timestamp: msg.consensus_timestamp };
       } catch {
         return null;
       }
@@ -64,14 +63,14 @@ export async function GET(request: NextRequest) {
         // If requestType is different, combine and assign status based on latest
         if (existing.requestType !== msg.requestType) {
           // Merge fields, prefer latest
-          const latest = existing.timestamp > msg.timestamp ? existing : msg;
+          const latest = existing.consensus_timestamp > msg.consensus_timestamp ? existing : msg;
           const combined = { ...existing, ...msg };
           combined.status = getStatusForType(latest.requestType);
-          combined.timestamp = latest.timestamp;
+          combined.consensus_timestamp = latest.consensus_timestamp;
           requestMap.set(msg.requestId, combined);
         } else {
           // If same requestType, keep the latest one
-          const latest = existing.timestamp > msg.timestamp ? existing : msg;
+          const latest = existing.consensus_timestamp > msg.consensus_timestamp ? existing : msg;
           latest.status = getStatusForType(latest.requestType);
           requestMap.set(msg.requestId, latest);
         }
@@ -82,9 +81,13 @@ export async function GET(request: NextRequest) {
     const result = Array.from(requestMap.values());
     const bypassList = ['2841eb51-873b-4936-b73c-873fab6706b0'];
 
+    // Only include requests with requestedAt >= 2025-08-08T00:00:00.000Z
+    const minDate = new Date('2025-08-07T16:30:00.000Z');
     const filtered = result.filter((msg: any) => {
       if (bypassList.includes(msg.requestId)) return false;
-      return true;
+      if (!msg.requestedAt) return false;
+      const reqDate = new Date(msg.requestedAt);
+      return reqDate >= minDate;
     });
     // if (typeFilter === 'request') {
     //   result = result.filter((msg: any) => msg.requestType === 'access-request');
@@ -199,8 +202,7 @@ export async function PATCH(request: NextRequest) {
         metadataCid,
         name: metadataJson.name,
         description: metadataJson.description,
-      },
-      timestamp: new Date().toISOString()
+      }
     });
 
     const submitTx = await new TopicMessageSubmitTransaction()

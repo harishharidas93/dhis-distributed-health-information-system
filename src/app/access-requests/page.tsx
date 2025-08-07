@@ -1,6 +1,6 @@
 'use client';
 
-import { useGrantAccessRequest, useRejectAccessRequest, useFetchAccessRequests } from "@/services/user.service";
+import { useGrantAccessRequest, useRejectAccessRequest } from "@/services/user.service";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -20,16 +20,12 @@ import { useStore } from "@/store/store";
 import { AccessRequest, AccessRequestPayload } from "@/types/accessRequest";
 
 const AccessRequests = () => {
-  const { user } = useStore();
+  const { user, accessRequests, setAccessRequests, setPendingRequestsCount } = useStore();
   const grantMutation = useGrantAccessRequest();
   const rejectMutation = useRejectAccessRequest();
   
-  const walletAddress = user?.walletAddress || '';
-  const userDid = user?.did || '';
-  const { data: requests = [], isLoading, isError, error, refetch } = useFetchAccessRequests(walletAddress, userDid, 'request');
-
   const handleGrantAccess = (requestId: string, nftId: string, instituitionId: string) => {
-    const request = requests.find((r: { requestId: string; }) => r.requestId === requestId);
+    const request = accessRequests.find((r: { requestId: string; }) => r.requestId === requestId);
     if (!request) return;
     const payload: AccessRequestPayload = {
       requestType: "access-approval",
@@ -39,7 +35,15 @@ const AccessRequests = () => {
       nftId,
     };
     grantMutation.mutate(payload, {
-      onSuccess: () => refetch()
+      onSuccess: () => {
+        // Update the request status in the store
+        const updatedRequests = accessRequests.map((req: AccessRequest) => 
+          req.requestId === requestId ? { ...req, status: 'approved' as const } : req
+        );
+        setAccessRequests(updatedRequests);
+        const pendingCount = updatedRequests.filter((req: AccessRequest) => req.status === 'pending').length;
+        setPendingRequestsCount(pendingCount);
+      }
     });
   };
 
@@ -52,12 +56,20 @@ const AccessRequests = () => {
       nftId,
     };
     rejectMutation.mutate(payload, {
-      onSuccess: () => refetch()
+      onSuccess: () => {
+        // Update the request status in the store
+        const updatedRequests = accessRequests.map((req: AccessRequest) => 
+          req.requestId === requestId ? { ...req, status: 'rejected' as const } : req
+        );
+        setAccessRequests(updatedRequests);
+        const pendingCount = updatedRequests.filter((req: AccessRequest) => req.status === 'pending').length;
+        setPendingRequestsCount(pendingCount);
+      }
     });
   };
 
-  const pendingRequests = requests.filter((req: AccessRequest) => req.status === 'pending');
-  const processedRequests = requests.filter((req: AccessRequest) => req.status !== 'pending');
+  const pendingRequests = accessRequests.filter((req: AccessRequest) => req.status === 'pending');
+  const processedRequests = accessRequests.filter((req: AccessRequest) => req.status !== 'pending');
 
   const getUrgencyColor = (urgency: string) => {
     switch (urgency) {
@@ -92,16 +104,6 @@ const AccessRequests = () => {
           </div>
         </div>
       </header>
-      {isLoading && (
-        <div className="flex items-center justify-center py-16">
-          <span className="text-muted-foreground text-lg">Loading access requests...</span>
-        </div>
-      )}
-      {isError && (
-        <div className="flex items-center justify-center py-16">
-          <span className="text-destructive text-lg">{error instanceof Error ? error.message : 'Failed to load access requests'}</span>
-        </div>
-      )}
       <div className="container mx-auto px-4 py-8">
         {/* Pending Requests */}
         <div className="mb-8">
