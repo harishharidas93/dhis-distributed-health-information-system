@@ -11,7 +11,6 @@ import { hederaClient } from '@/services/hedera.client';
 import { getUserById } from '@/services/lowdb.service';
 
 const client = hederaClient();
-// Setup Pinata
 const pinata = new PinataSDK({
   pinataJwt: config.pinata.jwt,
   pinataGateway: config.pinata.gatewayUrl,
@@ -33,19 +32,6 @@ const PATIENT_PRIVATE_KEY_HEX = '3d4f8e48e193f416e44362da7d34f068a5ce8f358a6ab8e
 const patientPublicKey = PublicKey.fromStringECDSA(PATIENT_PUBLIC_KEY_HEX);
 const patientPrivateKey = PrivateKey.fromStringECDSA(PATIENT_PRIVATE_KEY_HEX);
 
-// Initialize Hedera client
-// let hederaClient: Client | null = null;
-// async function getHederaClient() {
-//   if (!hederaClient) {
-//     hederaClient = Client.forName(config.hedera.network);
-//     hederaClient.setOperator(
-//       config.hedera.accountId, 
-//       PrivateKey.fromStringECDSA(config.hedera.privateKey)
-//     );
-//   }
-//   return hederaClient;
-// }
-
 // Helper function to compute ECDH shared secret
 async function computeHederaSharedSecret(privateKey: PrivateKey, publicKey: PublicKey): Promise<Buffer> {
   const ecdh = crypto.createECDH('secp256k1');
@@ -56,6 +42,61 @@ async function computeHederaSharedSecret(privateKey: PrivateKey, publicKey: Publ
 // Handle preflight
 export async function OPTIONS() {
   return new NextResponse(null, { status: 200, headers: corsHeaders });
+}
+
+// 🟢 Verify Access Rights by Querying Mirror Node
+async function verifyProviderAccess(providerDID: string, fileCid: string): Promise<boolean> {
+  try {
+    // 1. Get patient topic ID from DID
+    const didParts = providerDID.split(/[:_]/);
+    const patientTopicId = didParts[didParts.length - 1];
+    
+    if (!patientTopicId) {
+      console.error('Invalid provider DID format');
+      return false;
+    }
+
+    // 2. Query mirror node for messages
+    const messages = await mirrorNode.fetchAllTopicMessages(patientTopicId);
+    
+    // 3. Find the most recent approval message for this file
+    const approval = messages.reverse().find(msg => {
+      try {
+        const content = JSON.parse(msg.message);
+        return content.type === 'access-approval' && 
+               content.recordDetails?.metadataCid === fileCid;
+      } catch {
+        return false;
+      }
+    });
+
+    if (!approval) {
+      console.log('No approval found for file:', fileCid);
+      return false;
+    }
+
+    const approvalData = JSON.parse(approval.message);
+    
+    // 4. Check expiration for time-based access
+    if (approvalData.expirationTime) {
+      const isValid = new Date(approvalData.expirationTime) > new Date();
+      if (!isValid) console.log('Access has expired');
+      return isValid;
+    }
+
+    // 5. Check usage count for single-use access
+    if (approvalData.usageCount !== undefined) {
+      const isValid = approvalData.usageCount > 0;
+      if (!isValid) console.log('Access limit reached');
+      return isValid;
+    }
+
+    return true;
+
+  } catch (error) {
+    console.error('Access verification failed:', error);
+    return false;
+  }
 }
 
 // 🟢 PUT — Encrypt and Upload (Patient)
@@ -95,17 +136,15 @@ export async function PUT(request: NextRequest) {
     const ephemeralPublicKey = ephemeralKey.publicKey;
 
     // Compute shared secret
-    // The shared secret is generated using ECDH (Elliptic Curve Diffie-Hellman). It enables two parties to derive the same secret key without directly sending any secret over the network.
-    // patientPublicKey from did
     const sharedSecret = await computeHederaSharedSecret(ephemeralKey, patientPublicKey);
     
-    // Derive decryption key with proper typing
+    // Derive encryption key
     const derivedKey = Buffer.from(
       crypto.hkdfSync(
         'sha256',
         sharedSecret,
-        Buffer.from(''), // salt
-        Buffer.from(''), // info
+        Buffer.from(''),
+        Buffer.from(''),
         32
       )
     );
@@ -191,6 +230,104 @@ export async function PUT(request: NextRequest) {
   }
 }
 
+// 🟢 GET — Decrypt and Serve PDF (Provider)
+export async function GET(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const metadataCid = searchParams.get('cid');
+    const providerKey = searchParams.get('providerKey');
+    const providerDID = searchParams.get('providerDID');
+    
+    if (!metadataCid || !providerKey || !providerDID) {
+      return NextResponse.json(
+        { error: 'Missing required parameters' },
+        { status: 400 }
+      );
+    }
+
+    // 1. Verify access rights by querying mirror node
+    const hasAccess = await verifyProviderAccess(providerDID, metadataCid);
+    if (!hasAccess) {
+      return NextResponse.json(
+        { error: 'Access not granted or expired' },
+        { status: 403 }
+      );
+    }
+
+    // 2. Get original metadata
+    const metadataRes = await axios.get(`${config.pinata.gatewayUrl}${metadataCid}`);
+    const metadata = metadataRes.data;
+
+    // 3. Get provider-specific encrypted key (from HCS approval message)
+    const approval = await mirrorNode.findApprovalForFile(providerDID, metadataCid);
+    if (!approval?.storageLocation) {
+      return NextResponse.json(
+        { error: 'No access key found' },
+        { status: 404 }
+      );
+    }
+
+    let encryptedForProvider: Buffer;
+    if (approval.storageLocation.startsWith('hfs:')) {
+      const fileId = approval.storageLocation.split(':')[1];
+      encryptedForProvider = await mirrorNode.getFileContents(fileId);
+    } else {
+      const cid = approval.storageLocation.split(':')[1];
+      const res = await axios.get(`${config.pinata.gatewayUrl}${cid}`, { 
+        responseType: 'arraybuffer' 
+      });
+      encryptedForProvider = Buffer.from(res.data);
+    }
+
+    // 4. Decrypt with provider's key
+    const iv = Buffer.from(metadata.properties.iv, 'hex');
+    const providerPubKey = PublicKey.fromStringECDSA(providerKey);
+    const sharedSecret = await computeHederaSharedSecret(patientPrivateKey, providerPubKey);
+    
+    const derivedKey = Buffer.from(
+      crypto.hkdfSync(
+        'sha256',
+        sharedSecret,
+        Buffer.from(''),
+        Buffer.from(''),
+        32
+      )
+    );
+
+    const keyDecipher = crypto.createDecipheriv('aes-256-gcm', derivedKey, iv);
+    keyDecipher.setAuthTag(Buffer.from(metadata.properties.keyAuthTag, 'hex'));
+    const aesKey = Buffer.concat([
+      keyDecipher.update(encryptedForProvider),
+      keyDecipher.final()
+    ]);
+
+    // 5. Fetch and decrypt file
+    const fileRes = await axios.get(metadata.image, { responseType: 'arraybuffer' });
+    const encryptedBuffer = Buffer.from(fileRes.data);
+    const authTag = Buffer.from(metadata.properties.authTag, 'hex');
+
+    const decipher = crypto.createDecipheriv('aes-256-gcm', aesKey, iv);
+    decipher.setAuthTag(authTag);
+    const decrypted = Buffer.concat([decipher.update(encryptedBuffer), decipher.final()]);
+
+    return new NextResponse(decrypted, {
+      headers: {
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': 'inline; filename="decrypted.pdf"',
+        ...corsHeaders,
+      },
+    });
+  } catch (error) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: error instanceof Error ? error.message : 'Decryption failed',
+      },
+      { status: 500, headers: corsHeaders }
+    );
+  }
+}
+
 // 🟢 POST — Request Access (Provider)
 export async function POST(request: NextRequest) {
   try {
@@ -203,14 +340,16 @@ export async function POST(request: NextRequest) {
       patientId,
       instituitionId,
       requestedAt,
-      requestType, // 'access-request' or 'access-approval' or 'access-revoke' or 'access-reject' or 'access-timed-out'
+      requestType,
     } = await request.json();
+    
     if (!nftId) {
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
       );
     }
+
     const userDetails = getUserById(patientId);
     const institutionDetails = getUserById(instituitionId);
     if (!userDetails || !institutionDetails) {
@@ -219,7 +358,8 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-    // 1. Fetch NFT details (from mirror node or your NFT API)
+
+    // 1. Fetch NFT details
     let nftDetails;
     try {
       nftDetails = await mirrorNode.fetchNFTInfo(nftId);
@@ -239,27 +379,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'NFT metadata not found' }, { status: 404 });
     }
 
-    // 3. Fetch metadata JSON from Pinata/IPFS
-    let metadataJson;
-    try {
-      const metaRes = await axios.get(`${config.pinata.gatewayUrl}${metadataCid}`);
-      metadataJson = metaRes.data;
-    } catch (err) {
-      return NextResponse.json({ error: 'Failed to fetch NFT metadata JSON' }, { status: 500 });
-    }
-
-    // 5. Get topic id from patientDID (last part after last colon or underscore)
-    let patientTopicId = null;
-    // Split by both colon and underscore, take last segment
+    // 3. Get topic id from patientDID
     const didParts = userDetails.did.split(/[:_]/);
-    if (didParts.length > 0) {
-      patientTopicId = didParts[didParts.length - 1];
-    }
+    const patientTopicId = didParts[didParts.length - 1];
     if (!patientTopicId) {
       return NextResponse.json({ error: 'Invalid patient DID format' }, { status: 400 });
     }
 
-    // const client = await getHederaClient();
     const requestId = crypto.randomUUID();
 
     // Submit to HCS
@@ -285,8 +411,8 @@ export async function POST(request: NextRequest) {
       recordDetails: {
         nftId,
         metadataCid,
-        name: metadataJson.name,
-        description: metadataJson.description,
+        name: nftDetails.name,
+        description: nftDetails.description,
       },
       timestamp: new Date().toISOString()
     });
@@ -319,16 +445,16 @@ export async function PATCH(request: NextRequest) {
       providerPublicKey,
       fileCid,
       accessType,
-      duration 
+      duration,
+      providerDID
     } = await request.json();
 
     // 1. Get original encrypted file metadata
     const metadataRes = await axios.get(`${config.pinata.gatewayUrl}${fileCid}`);
     const metadata = metadataRes.data;
 
-    // 2. Decrypt AES key (using existing patient decryption logic)
+    // 2. Decrypt AES key
     const iv = Buffer.from(metadata.properties.iv, 'hex');
-    const authTag = Buffer.from(metadata.properties.authTag, 'hex');
     const encryptedAesKey = Buffer.from(metadata.properties.encryptedAesKey, 'base64');
     const ephemeralPublicKey = PublicKey.fromStringECDSA(metadata.properties.ephemeralPublicKey);
     const keyAuthTag = Buffer.from(metadata.properties.keyAuthTag, 'hex');
@@ -374,9 +500,7 @@ export async function PATCH(request: NextRequest) {
     const providerAuthTag = keyCipher.getAuthTag();
 
     // 4. Store encrypted key
-    // const client = await getHederaClient();
     let storageLocation;
-
     if (config.hedera.hfsKey) {
       const fileTx = await new FileCreateTransaction()
         .setContents(encryptedForProvider)
@@ -390,16 +514,20 @@ export async function PATCH(request: NextRequest) {
         type: 'application/octet-stream',
         lastModified: Date.now()
       });
-
       const upload = await pinata.upload.public.file(file);
       storageLocation = `ipfs:${upload.cid}`;
-
     }
 
-    // 5. Submit approval to HCS
+    // 5. Get patient topic ID from DID
+    const didParts = metadata.properties.patientDID.split(/[:_]/);
+    const patientTopicId = didParts[didParts.length - 1];
+
+    // 6. Submit approval to HCS
     const approvalMessage = JSON.stringify({
       type: 'access-approval',
       requestId,
+      providerDID,
+      fileCid,
       storageLocation,
       accessType,
       expirationTime: accessType === 'time-based' 
@@ -409,7 +537,7 @@ export async function PATCH(request: NextRequest) {
     });
 
     const submitTx = await new TopicMessageSubmitTransaction()
-      .setTopicId(config.hedera.hcsTopicId)
+      .setTopicId(patientTopicId)
       .setMessage(approvalMessage)
       .execute(client);
 
@@ -423,82 +551,6 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Approval failed' },
       { status: 500 }
-    );
-  }
-}
-
-// 🟢 GET — Decrypt and Serve PDF (Provider)
-export async function GET(request: NextRequest) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const metadataCid = searchParams.get('cid');
-    const providerKey = searchParams.get('providerKey');
-    const providerDID = searchParams.get('providerDID');
-    
-    if (!metadataCid || !providerKey || !providerDID) {
-      return NextResponse.json(
-        { error: 'Missing required parameters' },
-        { status: 400 }
-      );
-    }
-
-    // 1. Verify access rights
-    // For now, assuming access is granted if the encrypted key exists
-
-    // 2. Get original metadata
-    const metadataRes = await axios.get(`${config.pinata.gatewayUrl}${metadataCid}`);
-    const metadata = metadataRes.data;
-
-    // 3. Get provider-specific encrypted key
-    const encryptedAesKey = Buffer.from(metadata.properties.encryptedAesKey, 'base64');
-    const iv = Buffer.from(metadata.properties.iv, 'hex');
-    const keyAuthTag = Buffer.from(metadata.properties.keyAuthTag, 'hex');
-
-    // 4. Decrypt with provider's key
-    const providerPubKey = PublicKey.fromStringECDSA(providerKey);
-    const sharedSecret = await computeHederaSharedSecret(patientPrivateKey, providerPubKey);
-    
-    // Derive decryption key with proper typing
-    const derivedKey = Buffer.from(
-      crypto.hkdfSync(
-        'sha256',
-        sharedSecret,
-        Buffer.from(''), // salt
-        Buffer.from(''), // info
-        32
-      )
-    );
-
-    const keyDecipher = crypto.createDecipheriv('aes-256-gcm', derivedKey, iv);
-    keyDecipher.setAuthTag(keyAuthTag);
-    const aesKey = Buffer.concat([
-      keyDecipher.update(encryptedAesKey),
-      keyDecipher.final()
-    ]);
-
-    // 5. Fetch and decrypt file
-    const fileRes = await axios.get(metadata.image, { responseType: 'arraybuffer' });
-    const encryptedBuffer = Buffer.from(fileRes.data);
-    const authTag = Buffer.from(metadata.properties.authTag, 'hex');
-
-    const decipher = crypto.createDecipheriv('aes-256-gcm', aesKey, iv);
-    decipher.setAuthTag(authTag);
-    const decrypted = Buffer.concat([decipher.update(encryptedBuffer), decipher.final()]);
-
-    return new NextResponse(decrypted, {
-      headers: {
-        'Content-Type': 'application/pdf',
-        'Content-Disposition': 'inline; filename="decrypted.pdf"',
-        ...corsHeaders,
-      },
-    });
-  } catch (error) {
-    return NextResponse.json(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : 'Decryption failed',
-      },
-      { status: 500, headers: corsHeaders }
     );
   }
 }

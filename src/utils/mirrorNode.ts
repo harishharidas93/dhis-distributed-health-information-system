@@ -128,6 +128,57 @@ async function fetchAllTopicMessages(topicId: string): Promise<any[]> {
   return allMessages;
 }
 
+async function getTopicMessages(topicId: string): Promise<any[]> {
+  try {
+    const messages = await fetchAllTopicMessages(topicId);
+    return messages.map(msg => ({
+      ...msg,
+      message: Buffer.from(msg.message, 'base64').toString('utf-8')
+    }));
+  } catch (error) {
+    console.error('Error fetching topic messages:', error);
+    return [];
+  }
+}
+
+async function findApprovalForFile(providerDID: string, fileCid: string): Promise<any | null> {
+  try {
+    // Get topic ID from provider DID
+    const didParts = providerDID.split(/[:_]/);
+    const topicId = didParts[didParts.length - 1];
+    
+    const messages = await getTopicMessages(topicId);
+    
+    // Find the most recent approval for this file
+    const approval = messages.reverse().find(msg => {
+      try {
+        const content = JSON.parse(msg.message);
+        return content.type === 'access-approval' && 
+               content.recordDetails?.metadataCid === fileCid;
+      } catch {
+        return false;
+      }
+    });
+
+    return approval ? JSON.parse(approval.message) : null;
+  } catch (error) {
+    console.error('Error finding approval:', error);
+    return null;
+  }
+}
+
+async function getFileContents(fileId: string): Promise<Buffer> {
+  try {
+    const { data } = await axiosInstance.get(`/files/${fileId}/contents`, {
+      responseType: 'arraybuffer'
+    });
+    return Buffer.from(data);
+  } catch (error) {
+    console.error('Error fetching file contents:', error);
+    throw error;
+  }
+}
+
 const exportedFunctions = {
   fetchAccountInfo,
   fetchTokenInfo,
@@ -135,6 +186,10 @@ const exportedFunctions = {
   fetchNftTransactions,
   fetchAllNFTs,
   fetchAllTopicMessages,
+  // New exported functions
+  getTopicMessages,
+  findApprovalForFile,
+  getFileContents,
 };
 
 export default exportedFunctions;
