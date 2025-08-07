@@ -5,29 +5,24 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { 
   Building2, 
-  FileText, 
-  Users, 
-  Shield, 
+  FileText,
+  Shield,
   Upload, 
   Search, 
   Activity,
   Eye,
   Clock,
   ArrowRight,
-  LogOut
+  LogOut,
+  AlertCircle
 } from "lucide-react";
 import Link from "next/link";
 import { useStore } from "@/store/store";
 import { useRouter } from "next/navigation";
 import { disconnectHashConnect } from "@/services/hashconnect";
+import { useHospitalDashboardQueries } from "@/services/user.service";
 
-interface StatsCard {
-  title: string;
-  value: string;
-  change: string;
-  icon: React.ElementType;
-  trend: "up" | "down" | "neutral";
-}
+
 
 interface RecentActivity {
   id: string;
@@ -38,38 +33,19 @@ interface RecentActivity {
 }
 
 const HospitalDashboard = () => {
-    const router = useRouter();
-      const {user, setUser} = useStore();
-  const stats: StatsCard[] = [
-    {
-      title: "Total Records",
-      value: "1,247",
-      change: "+12%",
-      icon: FileText,
-      trend: "up",
-    },
-    {
-      title: "Active Patients",
-      value: "892",
-      change: "+5%",
-      icon: Users,
-      trend: "up",
-    },
-    {
-      title: "Pending Requests",
-      value: "23",
-      change: "-8%",
-      icon: Clock,
-      trend: "down",
-    },
-    {
-      title: "NFTs Issued",
-      value: "2,156",
-      change: "+18%",
-      icon: Shield,
-      trend: "up",
-    },
-  ];
+  const router = useRouter();
+  const { user, setUser } = useStore();
+  
+  // Use the custom hook for hospital dashboard queries
+  const {
+    accessRequestsData,
+    pendingRequestsCount,
+    isLoading,
+    isError
+  } = useHospitalDashboardQueries(user?.did || '');
+
+  console.log("Hospital Access Requests:", accessRequestsData);
+  console.log("Pending Requests Count:", pendingRequestsCount);
 
   const recentActivity: RecentActivity[] = [
     {
@@ -155,7 +131,7 @@ const HospitalDashboard = () => {
       </header>
       <div className="container mx-auto px-4 py-8">
         {/* Quick Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
           <Button asChild size="lg" className="h-20 flex-col gap-2">
             <Link href="/hospital-record-creation">
               <Upload className="h-6 w-6" />
@@ -168,63 +144,38 @@ const HospitalDashboard = () => {
               Request Access
             </Link>
           </Button>
+          <Button 
+            disabled={pendingRequestsCount === 0} 
+            size="lg" 
+            variant="outline" 
+            className="h-20 flex-col gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-background"
+            onClick={() => {
+              if (pendingRequestsCount > 0) {
+                router.push('/hospital-access-request?tab=manage');
+              }
+            }}
+          >
+            <Clock className="h-6 w-6" />
+            Pending Requests {pendingRequestsCount > 0 ? `(${pendingRequestsCount})` : ''}
+          </Button>
         </div>
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          {stats.map((stat) => {
-            const Icon = stat.icon;
-            return (
-              <Card key={stat.title}>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">{stat.title}</CardTitle>
-                  <Icon className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{stat.value}</div>
-                  <p className={`text-xs ${stat.trend === "up" ? "text-green-600" : stat.trend === "down" ? "text-red-600" : "text-muted-foreground"}`}>
-                    {stat.change} from last month
-                  </p>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
+        
+        {/* Loading State */}
+        {isLoading && (
+          <div className="text-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+            <p className="text-muted-foreground mt-2">Loading access requests...</p>
+          </div>
+        )}
+        
+        {/* Error State */}
+        {isError && (
+          <div className="text-center py-8">
+            <AlertCircle className="h-8 w-8 text-destructive mx-auto mb-2" />
+            <p className="text-destructive">Failed to load access requests</p>
+          </div>
+        )}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Recent Activity */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Activity className="h-5 w-5" />
-                Recent Activity
-              </CardTitle>
-              <CardDescription>
-                Latest actions and updates in your healthcare system
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {recentActivity.map((activity) => {
-                  const Icon = getActivityIcon(activity.type);
-                  return (
-                    <div key={activity.id} className="flex items-start gap-3 p-3 border rounded-lg">
-                      <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
-                        <Icon className="h-4 w-4 text-primary" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium">{activity.description}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {new Date(activity.timestamp).toLocaleString()}
-                        </p>
-                      </div>
-                      <Badge className={getStatusColor(activity.status)}>
-                        {activity.status}
-                      </Badge>
-                    </div>
-                  );
-                })}
-              </div>
-            </CardContent>
-          </Card>
           {/* Quick Access */}
           <Card>
             <CardHeader>

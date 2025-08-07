@@ -1,10 +1,10 @@
 import { AccessRequestPayload } from "@/types/accessRequest";
 
-export const useFetchAccessRequests = (walletAddress: string, userDid: string, type: string = 'request') => {
+export const useFetchAccessRequests = (userDid: string) => {
   return useQuery({
-    queryKey: ['accessRequests', walletAddress, userDid, type],
-    queryFn: () => fetchAccessRequests({ walletAddress, userDid, type }),
-    enabled: !!walletAddress && !!userDid,
+    queryKey: ['accessRequests', userDid],
+    queryFn: () => fetchAccessRequests({ userDid }),
+    enabled: !!userDid,
     staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
   });
@@ -21,35 +21,23 @@ export const useRejectAccessRequest = () => {
     mutationFn: rejectAccessRequest,
   });
 };
-export async function fetchAccessRequests({ walletAddress, userDid, type }: { walletAddress: string; userDid: string; type: string }) {
-  const res = await fetch(`/api/access-requests?walletAddress=${encodeURIComponent(walletAddress)}&userDid=${encodeURIComponent(userDid)}&type=${encodeURIComponent(type)}`);
-  if (!res.ok) throw new Error('Failed to fetch access requests');
-  return await res.json();
+export async function fetchAccessRequests({ userDid }: { userDid: string; }) {
+  const response = await apiClient.get(`${API_CONFIG.ENDPOINTS.ACCESS_REQUESTS}?userDid=${encodeURIComponent(userDid)}`);
+  return response.data;
 }
 
 export async function grantAccessRequest(payload: AccessRequestPayload) {
-  // Example API call to PATCH /api/dhis/medical-record
-  const res = await fetch('/api/access-requests', {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
-  });
-  if (!res.ok) throw new Error('Failed to grant access');
-  return await res.json();
+  const response = await apiClient.patch(API_CONFIG.ENDPOINTS.ACCESS_REQUESTS, payload);
+  return response.data;
 }
 
 export async function rejectAccessRequest(payload: AccessRequestPayload) {
-  const res = await fetch('/api/access-requests', {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
-  });
-  if (!res.ok) throw new Error('Failed to reject access');
-  return await res.json();
+  const response = await apiClient.patch(API_CONFIG.ENDPOINTS.ACCESS_REQUESTS, payload);
+  return response.data;
 }
-// POST Medical Record Access Request
+
 export const accessRequestByProvider = async (payload: any): Promise<any> => {
-  const response = await apiClient.post('/dhis/medical-record', payload);
+  const response = await apiClient.patch(API_CONFIG.ENDPOINTS.ACCESS_REQUESTS, payload);
   return response.data;
 };
 
@@ -314,4 +302,33 @@ export const useCreateCollection = () => {
       queryClient.invalidateQueries({ queryKey: [QUERY_KEYS.COLLECTIONS, variables.walletAddress] });
     },
   });
+};
+
+// Hospital Dashboard Queries
+export const useHospitalDashboardQueries = (hospitalDid: string) => {
+  // Single query for access requests
+  const { data: accessRequestsData = [], isLoading, isError, refetch } = useQuery({
+    queryKey: ['hospitalAccessRequests', hospitalDid],
+    queryFn: () => fetchAccessRequests({ userDid: hospitalDid }),
+    enabled: !!hospitalDid,
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
+
+  // Calculate derived values
+  const pendingRequestsCount = accessRequestsData?.filter((req: any) => req.status === 'pending').length || 0;
+  const approvedRequestsCount = accessRequestsData?.filter((req: any) => req.status === 'approved').length || 0;
+  const rejectedRequestsCount = accessRequestsData?.filter((req: any) => req.status === 'rejected').length || 0;
+  const totalRequestsCount = accessRequestsData?.length || 0;
+
+  return {
+    accessRequestsData,
+    pendingRequestsCount,
+    approvedRequestsCount,
+    rejectedRequestsCount,
+    totalRequestsCount,
+    isLoading,
+    isError,
+    refetch
+  };
 };

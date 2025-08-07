@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useStore } from "@/store/store";
+import { useNFTs } from "@/services/user.service";
 
 // interface MedicalRecord {
 //   id: string;
@@ -34,9 +35,17 @@ import { useStore } from "@/store/store";
 // }
 
 const MyRecords = () => {
-  const { nfts } = useStore();
+  const { user } = useStore();
+
+  const { data: nfts } = useNFTs(user?.walletAddress || '');
+
+  // useEffect(() => {
+  //   if (nftResponse) {
+  //     setAccessRequests(nftResponse);
+  //   }
+  // }, [accessRequestsResponse]);
   // Mock data
-  const records: any[] = nfts.map(nft => ({
+  const records: any[] = (nfts || []).map(nft => ({
     id: nft.id,
     nftId: `${nft.id}`,
     title: nft.name,

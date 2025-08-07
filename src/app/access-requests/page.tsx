@@ -18,12 +18,22 @@ import {
 import Link from "next/link";
 import { useStore } from "@/store/store";
 import { AccessRequest, AccessRequestPayload } from "@/types/accessRequest";
+import { useFetchAccessRequests } from "@/services/user.service";
+import { useEffect } from "react";
 
 const AccessRequests = () => {
   const { user, accessRequests, setAccessRequests, setPendingRequestsCount } = useStore();
   const grantMutation = useGrantAccessRequest();
   const rejectMutation = useRejectAccessRequest();
   
+  const { data: accessRequestsResponse } = useFetchAccessRequests(user?.did || '');
+
+  useEffect(() => {
+    if (accessRequestsResponse) {
+      setAccessRequests(accessRequestsResponse);
+    }
+  }, [accessRequestsResponse]);
+
   const handleGrantAccess = (requestId: string, nftId: string, instituitionId: string) => {
     const request = accessRequests.find((r: { requestId: string; }) => r.requestId === requestId);
     if (!request) return;

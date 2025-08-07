@@ -10,26 +10,36 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useStore } from "@/store/store";
-import { useAccessRequestByProvider } from '@/services/user.service';
-import { Search, Eye, Clock, ArrowLeft, Send, FileText } from "lucide-react";
+import { useAccessRequestByProvider, useHospitalDashboardQueries } from '@/services/user.service';
+import { Eye, Clock, ArrowLeft, Send, FileText, CircleX } from "lucide-react";
 import { AccessRequest, AccessRequestPayload } from "@/types/accessRequest";
 import Link from "next/link";
+import { useSearchParams, useRouter } from "next/navigation";
 
 const initialRequestDetails = {
-    patientId: "",
-    nftId: "",
-    reason: "",
-    urgency: "medium" as const,
-    requestedDuration: "60",
-  };
+  patientId: "",
+  nftId: "",
+  reason: "",
+  urgency: "medium" as const,
+  requestedDuration: "60",
+};
 
 const HospitalAccessRequest = () => {
   const { user } = useStore();
-  const [activeTab, setActiveTab] = useState<"create" | "manage">("create");
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  // Set initial tab based on URL param
+  const initialTab = (searchParams?.get("tab") === "manage") ? "manage" : "create";
+  const [activeTab, setActiveTab] = useState<"create" | "manage">(initialTab);
   const [newRequest, setNewRequest] = useState(initialRequestDetails);
 
   const [requests, setRequests] = useState<AccessRequest[]>([]);
-
+  const {
+    accessRequestsData,
+    pendingRequestsCount,
+    isLoading,
+    isError
+  } = useHospitalDashboardQueries(user?.did || '');
   const { toast } = useToast();
   const accessRequestMutation = useAccessRequestByProvider();
 
@@ -67,6 +77,21 @@ const HospitalAccessRequest = () => {
         variant: "destructive",
       });
     }
+  };
+
+  const [fileUrl, setFileUrl] = useState<string | null>(null);
+
+  const handleAccess = async (request: AccessRequest) => {
+    const response = await fetch('/api/session', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(request),
+    });
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    setFileUrl(url);
   };
 
   const getUrgencyColor = (urgency: string) => {
@@ -108,33 +133,41 @@ const HospitalAccessRequest = () => {
         </div>
       </header>
       <div className="container mx-auto px-4 py-8 max-w-6xl">
-        {/* Flow Description */}
-        <Card className="mb-8">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Search className="h-5 w-5" />
-              Flow 2: Record Access Request
-            </CardTitle>
-            <CardDescription>
-              Hospital requests access → patient approves or rejects → session begins and ends
-            </CardDescription>
-          </CardHeader>
-        </Card>
+        {/* Loading State */}
+        {isLoading && (
+          <div className="text-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+            <p className="text-muted-foreground mt-2">Loading access requests...</p>
+          </div>
+        )}
+        {/* Error State */}
+        {isError && (
+          <div className="text-center py-8">
+            <span className="inline-block bg-destructive/10 text-destructive px-4 py-2 rounded mb-2">Failed to load access requests</span>
+          </div>
+        )}
         {/* Tab Navigation */}
         <div className="flex space-x-1 bg-muted p-1 rounded-lg mb-6 w-fit">
           <Button
             variant={activeTab === "create" ? "default" : "ghost"}
             size="sm"
-            onClick={() => setActiveTab("create")}
+            onClick={() => {
+              setActiveTab("create");
+              router.replace("/hospital-access-request?tab=create");
+            }}
           >
             Create Request
           </Button>
           <Button
             variant={activeTab === "manage" ? "default" : "ghost"}
+            disabled={pendingRequestsCount === 0}
             size="sm"
-            onClick={() => setActiveTab("manage")}
+            onClick={() => {
+              setActiveTab("manage");
+              router.replace("/hospital-access-request?tab=manage");
+            }}
           >
-            Manage Requests
+            Manage Requests {pendingRequestsCount > 0 ? `(${pendingRequestsCount})` : ''}
           </Button>
         </div>
         {/* Create Request Tab */}
@@ -259,7 +292,7 @@ const HospitalAccessRequest = () => {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {requests.map((request) => (
+                {[...requests, ...accessRequestsData].map((request) => (
                   <div key={request.requestId} className="border rounded-lg p-4">
                     <div className="flex items-start justify-between mb-3">
                       <div>
@@ -300,7 +333,7 @@ const HospitalAccessRequest = () => {
                       <p className="text-sm font-medium mb-1">Reason</p>
                       <p className="text-sm text-muted-foreground">{request.reason}</p>
                     </div>
-                    {request.status === "active" && (
+                    {request.status === "approved" && (
                       <div className="bg-blue-500/10 p-3 rounded-md">
                         <div className="flex items-center gap-2">
                           <Clock className="h-4 w-4 text-blue-600" />
@@ -312,15 +345,34 @@ const HospitalAccessRequest = () => {
                       </div>
                     )}
                     {request.status === "approved" && (
-                      <Button size="sm" className="mt-2">
+                      <Button onClick={() => handleAccess(request)} size="sm" className="mt-2">
                         <FileText className="h-4 w-4 mr-2" />
                         Start Session
+                      </Button>
+                    )}
+                    {request.status === "rejected" && (
+                      <div className="text-sm text-destructive">
+                        Your request was rejected by the patient
+                      </div>
+                    )}
+                    {request.status === "pending" && (
+                      <Button size="sm" className="mt-2 bg-gray-500 hover:bg-gray-400">
+                        <CircleX className="h-4 w-4 mr-2" />
+                        Revoke request
                       </Button>
                     )}
                     {request.status === "pending" && (
                       <div className="text-sm text-muted-foreground">
                         Waiting for patient approval...
                       </div>
+                    )}
+                    {fileUrl && (
+                      <iframe
+                        src={fileUrl}
+                        width="100%"
+                        height="800px"
+                        title="Decrypted PDF"
+                      />
                     )}
                   </div>
                 ))}

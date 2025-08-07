@@ -1,25 +1,25 @@
 'use client';
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Upload, FileText, Users, Lock, Activity } from "lucide-react";
+import { Upload, FileText, Users, Lock, Coins, Edit, Eye, Share, ShieldOff } from "lucide-react";
 import Link from "next/link";
 import { useMemo } from "react";
 import { useStore } from "@/store/store";
-import { useNFTs, useFetchAccessRequests } from "@/services/user.service";
+import { nftAPI, QUERY_KEYS, fetchAccessRequests } from "@/services/user.service";
+import { useQueries } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { disconnectHashConnect } from "@/services/hashconnect";
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 
 const Dashboard = () => {
   const router = useRouter();
   const { 
     user, 
     setUser, 
-    walletAddress
+    walletAddress,
   } = useStore();
-  
-  const { data: nftsData } = useNFTs(walletAddress);
   
   // Memoize the parameters to prevent unnecessary re-renders
   const requestParams = useMemo(() => ({
@@ -27,13 +27,44 @@ const Dashboard = () => {
     userDid: user?.did || '',
     type: 'request' as const
   }), [user?.walletAddress, user?.did]);
-  
-  const { data: accessRequestsData = [] } = useFetchAccessRequests(
-    requestParams.walletAddress, 
-    requestParams.userDid, 
-    requestParams.type
-  );
 
+  // Parallel queries using useQueries for better performance
+  const results = useQueries({
+    queries: [
+      {
+        queryKey: [QUERY_KEYS.NFTS, walletAddress],
+        queryFn: () => nftAPI.getUserNFTs(walletAddress),
+        enabled: !!walletAddress,
+        staleTime: 5 * 60 * 1000,
+        refetchOnWindowFocus: false,
+      },
+      {
+        queryKey: ['accessRequests', requestParams.userDid],
+        queryFn: () => fetchAccessRequests({ 
+          userDid: requestParams.userDid, 
+        }),
+        enabled: !!requestParams.userDid,
+        staleTime: 5 * 60 * 1000,
+        refetchOnWindowFocus: false,
+      }
+    ]
+  });
+
+  const nftsData = results[0].data || [];
+  const accessRequestsData = results[1].data || [];
+
+
+  // setNFTs(nftsData);
+  // setAccessRequests(accessRequestsData);
+  // useEffect(() => {
+  //   if (nftsData) {
+  //   }
+  //   if (accessRequestsData) {
+  //   }
+  // }, [nftsData, accessRequestsData]);
+
+  console.log("NFTs Data:", nftsData);
+  console.log("Access Requests Data:", accessRequestsData);
   // Calculate values directly from the data
   const currentNFTCount = nftsData?.length || 0;
   const currentPendingCount = accessRequestsData?.filter((req: any) => req.status === 'pending').length || 0;
@@ -82,21 +113,27 @@ const Dashboard = () => {
           </div>
         </div>
 
-        {/* Summary Tiles */}
+        {/* Summary Tiles & Quick Actions */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <Card className="bg-gradient-subtle hover:bg-muted">
-            <Link href="/records">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Total Records</CardTitle>
-                <FileText className="h-4 w-4 text-primary" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-primary">{currentNFTCount}</div>
-                <p className="text-xs text-muted-foreground">
-                  NFTs minted and secured
-                </p>
-              </CardContent>
+          <Button asChild className="h-32 flex-col bg-primary hover:bg-primary/90 text-white">
+            <Link href="/upload">
+              <Upload className="h-8 w-8 mb-2" />
+              <span className="text-lg font-semibold">Upload Record</span>
+              <span className="text-xs text-white/80">Add new medical record</span>
             </Link>
+          </Button>
+
+          <Card className="bg-gradient-subtle">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Records</CardTitle>
+              <FileText className="h-4 w-4 text-primary" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-primary">{currentNFTCount}</div>
+              <p className="text-xs text-muted-foreground">
+                NFTs minted and secured
+              </p>
+            </CardContent>
           </Card>
 
           <Card className="bg-gradient-subtle hover:bg-muted">
@@ -113,60 +150,83 @@ const Dashboard = () => {
               </CardContent>
             </Link>
           </Card>
-
         </div>
 
-        {/* Quick Actions */}
-        <div className="mb-8">
-          <h3 className="text-xl font-semibold text-foreground mb-4">Quick Actions</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Button asChild className="h-20 flex-col">
-              <Link href="/upload">
-                <Upload className="h-6 w-6 mb-2" />
-                Upload Record
-              </Link>
-            </Button>
-            <Button asChild variant="outline" className="h-20 flex-col">
-              <Link href="/records">
-                <FileText className="h-6 w-6 mb-2" />
-                View Records
-              </Link>
-            </Button>
-            <Button asChild variant="outline" className="h-20 flex-col">
-              <Link href="/access-requests">
-                <Users className="h-6 w-6 mb-2" />
-                Grant Access
-              </Link>
-            </Button>
-          </div>
-        </div>
+        {/* Records Table */}
+        <div id="records-table" className="container mx-auto px-4 py-8">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <Coins className="h-5 w-5" />
+                <span>Your Tokenized Health Records</span>
+              </CardTitle>
+              <CardDescription>
+                Manage and control access to your medical record NFTs
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Record Name</TableHead>
+                    <TableHead>Date Created</TableHead>
+                    <TableHead>NFT ID</TableHead>
+                    <TableHead>Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {nftsData.map((record: any) => (
+                    <TableRow key={record.id}>
+                      <TableCell>
+                        <div className="flex items-center space-x-2">
+                          <FileText className="h-4 w-4 text-primary" />
+                          <span className="font-medium">{record.name}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell>{new Date(record.createdAt).toLocaleDateString()}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="font-mono text-xs">
+                          {record.id}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex space-x-1">
+                          <Button size="sm" variant="outline">
+                            <Eye className="h-3 w-3" />
+                          </Button>
+                          <Button size="sm" variant="outline">
+                            <Share className="h-3 w-3" />
+                          </Button>
+                          <Button size="sm" variant="outline">
+                            <ShieldOff className="h-3 w-3" />
+                          </Button>
+                          <Button size="sm" variant="outline">
+                            <Edit className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
 
-        {/* Recent Activity */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <Activity className="h-5 w-5" />
-              <span>Recent Activity</span>
-            </CardTitle>
-            <CardDescription>
-              Latest updates to your health records
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="flex items-center space-x-3">
-                <div className="h-2 w-2 bg-success rounded-full"></div>
-                <span className="text-sm">Blood test results uploaded and minted as NFT</span>
-                <span className="text-xs text-muted-foreground ml-auto">2 hours ago</span>
-              </div>
-              <div className="flex items-center space-x-3">
-                <div className="h-2 w-2 bg-primary rounded-full"></div>
-                <span className="text-sm">Access granted to Dr. Sarah Johnson</span>
-                <span className="text-xs text-muted-foreground ml-auto">1 day ago</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+              {nftsData.length === 0 && (
+                <div className="text-center py-8">
+                  <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                  <h3 className="text-lg font-medium mb-2">No Records Found</h3>
+                  <p className="text-muted-foreground mb-4">
+                    You haven&apos;t uploaded any medical records yet.
+                  </p>
+                  <Button asChild>
+                    <Link href="/upload">
+                      Upload Your First Record
+                    </Link>
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );

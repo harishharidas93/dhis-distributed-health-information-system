@@ -137,7 +137,7 @@ export async function PATCH(request: NextRequest) {
     try {
       nftDetails = await mirrorNode.fetchNFTInfo(nftId);
     } catch (err) {
-        console.error('Failed to fetch NFT details:', err);
+      console.error('Failed to fetch NFT details:', err);
       return NextResponse.json({ error: 'Failed to fetch NFT details' }, { status: 500 });
     }
 
@@ -160,7 +160,7 @@ export async function PATCH(request: NextRequest) {
       const metaRes = await axios.get(`${config.pinata.gatewayUrl}${metadataCid}`);
       metadataJson = metaRes.data;
     } catch (err) {
-        console.error('Failed to fetch NFT metadata JSON:', err);
+      console.error('Failed to fetch NFT metadata JSON:', err);
       return NextResponse.json({ error: 'Failed to fetch NFT metadata JSON' }, { status: 500 });
     }
 
@@ -176,7 +176,6 @@ export async function PATCH(request: NextRequest) {
     }
 
     const requestId = requestIdFromUI || crypto.randomUUID();
-    // const client = await getHederaClient();
     // Submit to HCS
     const message = JSON.stringify({
       requestType,
@@ -193,7 +192,7 @@ export async function PATCH(request: NextRequest) {
       accessType,
       requestedDuration,
       institutionDetails: {
-        id: institutionDetails.institutionId,
+        id: institutionDetails.id,
         name: institutionDetails.institutionName,
         did: institutionDetails.did,
       },
@@ -205,15 +204,29 @@ export async function PATCH(request: NextRequest) {
       }
     });
 
-    const submitTx = await new TopicMessageSubmitTransaction()
+    await new TopicMessageSubmitTransaction()
       .setTopicId(patientTopicId)
       .setMessage(message)
       .execute(client);
 
+    // Send to hospital topic (from institutionDetails.did)
+    let hospitalTopicId = null;
+    if (institutionDetails.did) {
+      const instDidParts = institutionDetails.did.split(/[:_]/);
+      if (instDidParts.length > 0) {
+        hospitalTopicId = instDidParts[instDidParts.length - 1];
+      }
+    }
+    if (hospitalTopicId) {
+      await new TopicMessageSubmitTransaction()
+        .setTopicId(hospitalTopicId)
+        .setMessage(message)
+        .execute(client);
+    }
+
     return NextResponse.json({
       success: true,
       requestId,
-      transactionId: submitTx.transactionId.toString(),
       message
     });
 

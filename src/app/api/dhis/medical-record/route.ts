@@ -180,7 +180,7 @@ export async function PUT(request: NextRequest) {
       { headers: corsHeaders }
     );
   } catch (error) {
-    console.error('PUT /api/dhis/medical-record error:', error);
+    console.error('PUT while encryption error:', error);
     return NextResponse.json(
       {
         success: false,
