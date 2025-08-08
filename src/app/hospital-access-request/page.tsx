@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useStore } from "@/store/store";
 import { useModifyAccessRequest, useHospitalDashboardQueries } from '@/services/user.service';
-import { Eye, Clock, ArrowLeft, Send, FileText, CircleX } from "lucide-react";
+import { Eye, Clock, ArrowLeft, Send, FileText, CircleX, CheckCircle } from "lucide-react";
 import { AccessRequest, AccessRequestPayload } from "@/types/accessRequest";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
@@ -155,14 +155,22 @@ const HospitalAccessRequest = () => {
   const [pendingSessionRequest, setPendingSessionRequest] = useState<AccessRequest | null>(null);
   const [isRefetching, setIsRefetching] = useState(false);
   const [revokingRequestId, setRevokingRequestId] = useState<string | null>(null);
+  const [activeSessionRequestId, setActiveSessionRequestId] = useState<string | null>(null);
+  const [isModalLoading, setIsModalLoading] = useState(false);
+  const [startingSessionId, setStartingSessionId] = useState<string | null>(null);
+  const [stoppingSessionId, setStoppingSessionId] = useState<string | null>(null);
+  const [completingSessionId, setCompletingSessionId] = useState<string | null>(null);
   
   const handleAccess = (request: AccessRequest) => {
+    setStartingSessionId(request.requestId);
     setPendingSessionRequest(request);
     setShowPasskeyModal(true);
   };
 
   const handleSessionStart = async () => {
     if (!pendingSessionRequest || !passkey) return;
+    
+    setIsModalLoading(true);
     try {
       const response = await fetch('/api/session', {
         method: 'POST',
@@ -183,6 +191,7 @@ const HospitalAccessRequest = () => {
         const blob = await response.blob();
         const url = URL.createObjectURL(blob);
         setFileUrl(url);
+        setActiveSessionRequestId(pendingSessionRequest.requestId);
       }
     } catch {
       toast({
@@ -191,10 +200,87 @@ const HospitalAccessRequest = () => {
         variant: 'destructive',
       });
       setFileUrl(null);
+    } finally {
+      setIsModalLoading(false);
+      setStartingSessionId(null);
+      setShowPasskeyModal(false);
+      setPasskey("");
+      setPendingSessionRequest(null);
     }
-    setShowPasskeyModal(false);
-    setPasskey("");
-    setPendingSessionRequest(null);
+  };
+
+  const handleSessionAction = async (request: AccessRequest, isComplete: boolean = false) => {
+    // Handle stop session locally (no API call)
+    if (request.requestedDuration !== 0 && !isComplete) {
+      setStoppingSessionId(request.requestId);
+      
+      // Clear the session locally
+      setFileUrl(null);
+      setActiveSessionRequestId(null);
+      
+      toast({
+        title: "Session Stopped",
+        description: "Session has been paused. You can start it again to continue viewing.",
+      });
+      
+      setStoppingSessionId(null);
+      return;
+    }
+
+    // Handle complete session (API call to permanently end)
+    if (!user?.did) {
+      toast({
+        title: "Error",
+        description: "User information not available.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setCompletingSessionId(request.requestId);
+
+    try {
+      const payload: AccessRequestPayload = {
+        requestType: "access-completed",
+        requestId: request.requestId,
+        patientId: request.patientDetails.id,
+        instituitionId: user.id,
+        nftId: request.nftId,
+        reason: "Session completed by provider",
+        requestedDuration: 0,
+        aesLockLocation: request.aesLockLocation,
+      };
+
+      await accessRequestMutation.mutateAsync(payload);
+
+      // Clear the session
+      setFileUrl(null);
+      setActiveSessionRequestId(null);
+
+      toast({
+        title: "Session Completed",
+        description: "Access session has been completed and file has been deleted.",
+      });
+
+      // Refetch data after successful completion
+      setTimeout(async () => {
+        try {
+          await refetch();
+          console.log("Data refetched after session completion");
+        } catch (error) {
+          console.error("Failed to refetch data after session completion:", error);
+        }
+      }, 2000);
+
+    } catch (error: any) {
+      toast({
+        title: "Session Completion Failed",
+        description: error?.message || "Could not complete access session.",
+        variant: "destructive",
+      });
+    } finally {
+      setCompletingSessionId(null);
+    }
   };
 
   const getUrgencyColor = (urgency: string) => {
@@ -470,18 +556,92 @@ const HospitalAccessRequest = () => {
                         </div>
                       </div>
                     )}
-                    {request.status === "approved" && (
-                      <Button onClick={() => handleAccess(request)} size="sm" className="mt-2 mr-2">
-                        <FileText className="h-4 w-4 mr-2" />
-                        Start Session
-                      </Button>
+                    {request.status === "approved" && activeSessionRequestId !== request.requestId && (
+                      <div className="flex gap-2 mt-2">
+                        <Button 
+                          onClick={() => handleAccess(request)} 
+                          size="sm" 
+                          className="bg-blue-600 hover:bg-blue-700"
+                          disabled={startingSessionId === request.requestId || accessRequestMutation.isPending}
+                        >
+                          {startingSessionId === request.requestId ? (
+                            <>
+                              <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white mr-2"></div>
+                              Starting...
+                            </>
+                          ) : (
+                            <>
+                              <FileText className="h-4 w-4 mr-2" />
+                              Start Session
+                            </>
+                          )}
+                        </Button>
+                        <Button 
+                          onClick={() => handleSessionAction(request, true)} 
+                          size="sm" 
+                          className="bg-green-600 hover:bg-green-700"
+                          disabled={completingSessionId === request.requestId || accessRequestMutation.isPending}
+                        >
+                          {completingSessionId === request.requestId ? (
+                            <>
+                              <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white mr-2"></div>
+                              Completing...
+                            </>
+                          ) : (
+                            <>
+                              <CheckCircle className="h-4 w-4 mr-2" />
+                              Complete
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    )}
+                    {request.status === "approved" && activeSessionRequestId === request.requestId && (
+                      <div className="flex gap-2 mt-2">
+                        <Button 
+                          onClick={() => handleSessionAction(request, false)} 
+                          size="sm" 
+                          className="bg-red-600 hover:bg-red-700"
+                          disabled={stoppingSessionId === request.requestId || completingSessionId === request.requestId || accessRequestMutation.isPending}
+                        >
+                          {stoppingSessionId === request.requestId ? (
+                            <>
+                              <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white mr-2"></div>
+                              Stopping...
+                            </>
+                          ) : (
+                            <>
+                              <FileText className="h-4 w-4 mr-2" />
+                              Stop Session
+                            </>
+                          )}
+                        </Button>
+                        <Button 
+                          onClick={() => handleSessionAction(request, true)} 
+                          size="sm" 
+                          className="bg-green-600 hover:bg-green-700"
+                          disabled={stoppingSessionId === request.requestId || completingSessionId === request.requestId || accessRequestMutation.isPending}
+                        >
+                          {completingSessionId === request.requestId ? (
+                            <>
+                              <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white mr-2"></div>
+                              Completing...
+                            </>
+                          ) : (
+                            <>
+                              <CheckCircle className="h-4 w-4 mr-2" />
+                              Complete Session
+                            </>
+                          )}
+                        </Button>
+                      </div>
                     )}
                     {request.status === "rejected" && (
                       <div className="text-sm text-destructive">
                         Your request was rejected by the patient
                       </div>
                     )}
-                    {(request.status === "pending" || request.status === "approved") && (
+                    {request.status === "pending" && (
                       <Button 
                         size="sm" 
                         className="mt-2 bg-gray-500 hover:bg-gray-400"
@@ -506,13 +666,37 @@ const HospitalAccessRequest = () => {
                         Waiting for patient approval...
                       </div>
                     )}
-                    {fileUrl && (
-                      <iframe
-                        src={fileUrl}
-                        width="100%"
-                        height="800px"
-                        title="Decrypted PDF"
-                      />
+                    {fileUrl && activeSessionRequestId === request.requestId && (
+                      <div className="mt-4">
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                          <div className="flex items-center gap-2 mb-2">
+                            <FileText className="h-4 w-4 text-blue-600" />
+                            <span className="text-blue-600 font-medium">Active Session</span>
+                          </div>
+                          <p className="text-sm text-blue-700">
+                            You are currently viewing the patient&apos;s medical record. Downloads are disabled for security.
+                          </p>
+                        </div>
+                        <iframe
+                          src={fileUrl}
+                          width="100%"
+                          height="800px"
+                          title="Decrypted PDF"
+                          style={{
+                            pointerEvents: 'none',
+                            userSelect: 'none',
+                            WebkitUserSelect: 'none',
+                            MozUserSelect: 'none',
+                            msUserSelect: 'none'
+                          }}
+                          onContextMenu={(e) => e.preventDefault()}
+                          onKeyDown={(e) => {
+                            if (e.ctrlKey || e.metaKey) {
+                              e.preventDefault();
+                            }
+                          }}
+                        />
+                      </div>
                     )}
                   </div>
                 ))}
@@ -540,11 +724,22 @@ const HospitalAccessRequest = () => {
           <DialogFooter>
             <Button
                   onClick={handleSessionStart}
-                  disabled={!passkey}
+                  disabled={!passkey || isModalLoading}
                 >
-                  Start Session
+                  {isModalLoading ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Starting Session...
+                    </>
+                  ) : (
+                    "Start Session"
+                  )}
                 </Button>
-                <Button variant="ghost" onClick={() => { setShowPasskeyModal(false); setPasskey(""); setPendingSessionRequest(null); }}>
+                <Button 
+                  variant="ghost" 
+                  onClick={() => { setShowPasskeyModal(false); setPasskey(""); setPendingSessionRequest(null); }}
+                  disabled={isModalLoading}
+                >
                   Cancel
                 </Button>
           </DialogFooter>

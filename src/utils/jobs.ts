@@ -3,6 +3,8 @@ import { hederaClient } from '@/services/hedera.client';
 
 const client = hederaClient();
 
+const scheduledExpiries = new Map<string, NodeJS.Timeout>();
+
 /**
  * Schedule HCS message for access expiry
  */
@@ -25,9 +27,9 @@ export function scheduleExpiryMessage({
     return;
   }
 
-  setTimeout(async () => {
+  const timeoutId = setTimeout(async () => {
     const message = {
-      type: 'access-expired',
+      requestType: 'access-expired',
       requestId,
       timestamp: new Date().toISOString(),
     };
@@ -41,6 +43,32 @@ export function scheduleExpiryMessage({
       console.log(`[✅] Expiry message sent: txId=${tx.transactionId}`);
     } catch (err) {
       console.error(`[❌] Failed to send expiry message:`, err);
+    } finally {
+      // Clean up the timeout reference
+      scheduledExpiries.delete(`${requestId}-${topicId}`);
     }
   }, delay);
+
+  // Store the timeout for potential cancellation
+  scheduledExpiries.set(`${requestId}-${topicId}`, timeoutId);
+  
+  console.log(`[📅] Scheduled expiry for requestId=${requestId}, topicId=${topicId}, delay=${delay}ms`);
+}
+
+/**
+ * Cancel scheduled expiry messages for a request
+ */
+export function cancelExpiryMessages(requestId: string) {
+  const keysToDelete: string[] = [];
+  
+  for (const [key, timeoutId] of scheduledExpiries.entries()) {
+    if (key.startsWith(requestId)) {
+      clearTimeout(timeoutId);
+      keysToDelete.push(key);
+      console.log(`[❌] Cancelled expiry for ${key}`);
+    }
+  }
+  
+  // Clean up the cancelled timeouts
+  keysToDelete.forEach(key => scheduledExpiries.delete(key));
 }

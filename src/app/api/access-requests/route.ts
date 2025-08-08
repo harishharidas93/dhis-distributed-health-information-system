@@ -3,11 +3,11 @@ import mirrorNode from '@/utils/mirrorNode';
 import axios from 'axios';
 import { config } from '@/config/config';
 import crypto from 'crypto';
-import { FileCreateTransaction, PrivateKey, PublicKey, Timestamp, TopicMessageSubmitTransaction } from '@hashgraph/sdk';
+import { FileCreateTransaction, PrivateKey, PublicKey, Timestamp, TopicMessageSubmitTransaction, FileDeleteTransaction } from '@hashgraph/sdk';
 import { hederaClient } from '@/services/hedera.client';
 import { getUserById } from '@/services/lowdb.service';
 import imageProcessor from '@/utils/imageProcessor';
-import { scheduleExpiryMessage } from '@/utils/jobs';
+import { scheduleExpiryMessage, cancelExpiryMessages } from '@/utils/jobs';
 // import { PinataSDK } from 'pinata';
 
 
@@ -31,6 +31,7 @@ function getStatusForType(type: string) {
         case 'access-revoke': return 'revoked';
         case 'access-reject': return 'rejected';
         case 'access-timed-out': return 'expired';
+        case 'access-completed': return 'completed';
         default: return 'unknown';
     }
 }
@@ -75,7 +76,7 @@ export async function GET(request: NextRequest) {
           // Merge fields, prefer latest
           const latest = existing.consensus_timestamp > msg.consensus_timestamp ? existing : msg;
           const combined = { ...existing, ...msg };
-          combined.status = getStatusForType(latest.requestType);
+          combined.status = existing.status === 'completed' ? 'completed' : getStatusForType(latest.requestType);
           combined.consensus_timestamp = latest.consensus_timestamp;
           requestMap.set(msg.requestId, combined);
         } else {
@@ -117,7 +118,6 @@ export async function PATCH(request: NextRequest) {
     const { 
       nftId,
       reason,
-      accessType,
       requestedDuration,
       urgency,
       patientId,
@@ -125,7 +125,8 @@ export async function PATCH(request: NextRequest) {
       requestedAt,
       requestId: requestIdFromUI,
       requestType,
-      passkey
+      passkey,
+      aesLockLocation
     } = await request.json();
     if (!nftId) {
       return NextResponse.json(
@@ -184,6 +185,34 @@ export async function PATCH(request: NextRequest) {
     }
 
     let aesKeyToUnlock = null, storageLocation = null, aesIv = null, providerAuthTag = null, expirationTime = null;
+    
+    // Handle access-completed case - delete file from Hedera File Service
+    if (requestType === 'access-completed') {
+      try {
+        // Cancel any scheduled expiry messages for this request
+        cancelExpiryMessages(requestIdFromUI);
+        
+        if (aesLockLocation) {
+          const fileLocation = aesLockLocation;
+          
+          if (fileLocation.startsWith('hfs:')) {
+            const fileId = fileLocation.replace('hfs:', '');
+            
+            // Delete the file from Hedera File Service
+            const deleteFileTx = new FileDeleteTransaction()
+              .setFileId(fileId)
+              .freezeWith(client);
+            
+            const signedDeleteTx = await deleteFileTx.sign(PrivateKey.fromStringECDSA(config.hedera.hfsKey.privateKey));
+            await signedDeleteTx.execute(client);
+          }
+        }
+      } catch (error) {
+        console.error('Error deleting file from HFS:', error);
+        // Continue with the message submission even if file deletion fails
+      }
+    }
+    
     if (requestType === 'access-approval') {
       const iv = Buffer.from(metadataJson.properties.iv, 'hex');
       aesIv = iv;
@@ -293,7 +322,6 @@ export async function PATCH(request: NextRequest) {
       },
       nftId,
       reason,
-      accessType,
       requestedDuration,
       expirationTime,
       institutionDetails: {

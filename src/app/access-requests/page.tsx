@@ -287,7 +287,7 @@ const AccessRequests = () => {
             <div className="space-y-4">
               {processedRequests.map((request: AccessRequest) => (
                 <Card key={request.requestId} className={`opacity-75 ${
-                  request.status === 'approved' ? 'border-l-4 border-l-success' : 'border-l-4 border-l-destructive'
+                  (request.status === 'approved' || request.status === 'completed') ? 'border-l-4 border-l-success' : 'border-l-4 border-l-destructive'
                 }`}>
                   <CardHeader className="pb-2">
                     <div className="flex items-center justify-between">
@@ -303,18 +303,8 @@ const AccessRequests = () => {
                         </div>
                       </div>
                       <div className="flex items-center space-x-2">
-                        <Badge variant={request.status === 'approved' ? 'default' : 'destructive'}>
-                          {request.status === 'approved' ? (
-                            <>
-                              <Check className="h-3 w-3 mr-1" />
-                              Approved
-                            </>
-                          ) : (
-                            <>
-                              <X className="h-3 w-3 mr-1" />
-                              Rejected
-                            </>
-                          )}
+                        <Badge variant={(request.status === 'approved' || request.status === 'completed') ? 'default' : 'destructive'}>
+                          {request.status.charAt(0).toUpperCase() + request.status.slice(1)}
                         </Badge>
                       </div>
                     </div>

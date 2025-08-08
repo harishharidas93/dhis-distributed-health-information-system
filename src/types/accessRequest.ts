@@ -2,6 +2,7 @@ export interface AccessRequest {
   requestType: string;
   urgency: "low" | "medium" | "high" | "emergency";
   requestedAt: string;
+  aesLockLocation?: string;
   requestId: string;
   expirationTime: string;
   patientDetails: {
@@ -11,7 +12,6 @@ export interface AccessRequest {
   };
   nftId: string;
   reason: string;
-  accessType: string;
   requestedDuration?: number;
   institutionDetails: {
     id: string;
@@ -24,7 +24,7 @@ export interface AccessRequest {
     name: string;
     description: string;
   };
-  status?: "pending" | "approved" | "rejected" | "active" | "expired";
+  status?: "pending" | "approved" | "rejected" | "active" | "expired" | "completed" | "revoked";
 }
 
 export interface AccessRequestPayload {
@@ -36,7 +36,7 @@ export interface AccessRequestPayload {
   instituitionId: string;
   nftId: string;
   reason?: string;
-  accessType?: string;
   requestedDuration?: number;
   passkey?: string;
+  aesLockLocation?: string;
 }

@@ -16,7 +16,7 @@ interface AccessRequest {
   recordType: string;
   reason: string;
   requestedAt: string;
-  status: "pending" | "approved" | "rejected" | "active" | "expired";
+  status: "pending" | "approved" | "rejected" | "active" | "expired" | "completed" | "revoked";
   sessionDuration?: number;
 }
 
