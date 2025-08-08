@@ -39,11 +39,6 @@ const MyRecords = () => {
 
   const { data: nfts } = useNFTs(user?.walletAddress || '');
 
-  // useEffect(() => {
-  //   if (nftResponse) {
-  //     setAccessRequests(nftResponse);
-  //   }
-  // }, [accessRequestsResponse]);
   // Mock data
   const records: any[] = (nfts || []).map(nft => ({
     id: nft.id,

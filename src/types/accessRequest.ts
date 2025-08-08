@@ -37,4 +37,5 @@ export interface AccessRequestPayload {
   reason?: string;
   accessType?: string;
   requestedDuration?: number;
+  passkey?: string;
 }

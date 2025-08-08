@@ -15,6 +15,7 @@ import { Eye, Clock, ArrowLeft, Send, FileText, CircleX } from "lucide-react";
 import { AccessRequest, AccessRequestPayload } from "@/types/accessRequest";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
 const initialRequestDetails = {
   patientId: "",
@@ -40,6 +41,9 @@ const HospitalAccessRequest = () => {
     isLoading,
     isError
   } = useHospitalDashboardQueries(user?.did || '');
+
+  console.log("Hospital Access Requests:", accessRequestsData);
+  console.log("Pending Requests Count:", pendingRequestsCount);
   const { toast } = useToast();
   const accessRequestMutation = useAccessRequestByProvider();
 
@@ -80,18 +84,49 @@ const HospitalAccessRequest = () => {
   };
 
   const [fileUrl, setFileUrl] = useState<string | null>(null);
+  const [showPasskeyModal, setShowPasskeyModal] = useState(false);
+  const [passkey, setPasskey] = useState("");
+  const [pendingSessionRequest, setPendingSessionRequest] = useState<AccessRequest | null>(null);
 
-  const handleAccess = async (request: AccessRequest) => {
-    const response = await fetch('/api/session', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(request),
-    });
-    const blob = await response.blob();
-    const url = URL.createObjectURL(blob);
-    setFileUrl(url);
+  const handleAccess = (request: AccessRequest) => {
+    setPendingSessionRequest(request);
+    setShowPasskeyModal(true);
+  };
+
+  const handleSessionStart = async () => {
+    if (!pendingSessionRequest || !passkey) return;
+    try {
+      const response = await fetch('/api/session', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ ...pendingSessionRequest, passkey }),
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        toast({
+          title: 'Session Start Failed',
+          description: errorData?.error || 'Could not start session. Please check your passkey or try again.',
+          variant: 'destructive',
+        });
+        setFileUrl(null);
+      } else {
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        setFileUrl(url);
+      }
+    } catch (err) {
+      toast({
+        title: 'Session Start Failed',
+        description: 'Could not start session. Please try again.',
+        variant: 'destructive',
+      });
+      setFileUrl(null);
+    }
+    setShowPasskeyModal(false);
+    setPasskey("");
+    setPendingSessionRequest(null);
   };
 
   const getUrgencyColor = (urgency: string) => {
@@ -160,14 +195,14 @@ const HospitalAccessRequest = () => {
           </Button>
           <Button
             variant={activeTab === "manage" ? "default" : "ghost"}
-            disabled={pendingRequestsCount === 0}
+            disabled={accessRequestsData.length === 0}
             size="sm"
             onClick={() => {
               setActiveTab("manage");
               router.replace("/hospital-access-request?tab=manage");
             }}
           >
-            Manage Requests {pendingRequestsCount > 0 ? `(${pendingRequestsCount})` : ''}
+            Manage Requests {accessRequestsData.length > 0 ? `(${accessRequestsData.length})` : ''}
           </Button>
         </div>
         {/* Create Request Tab */}
@@ -350,6 +385,33 @@ const HospitalAccessRequest = () => {
                         Start Session
                       </Button>
                     )}
+      {/* <div>
+        {showPasskeyModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+            <div className="bg-white dark:bg-zinc-900 rounded-lg shadow-lg p-6 w-full max-w-sm">
+              <h2 className="text-lg font-semibold mb-4">Enter Passkey</h2>
+              <input
+                type="password"
+                className="w-full border rounded px-3 py-2 mb-4"
+                placeholder="Enter your passkey"
+                value={passkey}
+                onChange={e => setPasskey(e.target.value)}
+              />
+              <div className="flex justify-end gap-2">
+                <Button
+                  onClick={handleSessionStart}
+                  disabled={!passkey}
+                >
+                  Start Session
+                </Button>
+                <Button variant="ghost" onClick={() => { setShowPasskeyModal(false); setPasskey(""); setPendingSessionRequest(null); }}>
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div> */}
                     {request.status === "rejected" && (
                       <div className="text-sm text-destructive">
                         Your request was rejected by the patient
@@ -386,6 +448,30 @@ const HospitalAccessRequest = () => {
           </Card>
         )}
       </div>
+      <Dialog open={showPasskeyModal} onOpenChange={setShowPasskeyModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Enter Passkey</DialogTitle>
+          </DialogHeader>
+          <Input
+            type="password"
+            placeholder="Enter your passkey"
+            value={passkey}
+            onChange={(e) => setPasskey(e.target.value)}
+          />
+          <DialogFooter>
+            <Button
+                  onClick={handleSessionStart}
+                  disabled={!passkey}
+                >
+                  Start Session
+                </Button>
+                <Button variant="ghost" onClick={() => { setShowPasskeyModal(false); setPasskey(""); setPendingSessionRequest(null); }}>
+                  Cancel
+                </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

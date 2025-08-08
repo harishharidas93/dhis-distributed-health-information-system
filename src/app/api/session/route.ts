@@ -5,7 +5,7 @@ import { PinataSDK } from 'pinata';
 import { config } from '@/config/config';
 import imageProcessor from '@/utils/imageProcessor';
 import crypto from 'crypto';
-import { PublicKey, PrivateKey, Client, TopicMessageSubmitTransaction, FileCreateTransaction, Hbar } from '@hashgraph/sdk';
+import { PublicKey, PrivateKey, Client, TopicMessageSubmitTransaction, FileCreateTransaction, Hbar, FileContentsQuery } from '@hashgraph/sdk';
 import mirrorNode from '@/utils/mirrorNode';
 import { hederaClient } from '@/services/hedera.client';
 import { getUserById } from '@/services/lowdb.service';
@@ -30,8 +30,8 @@ const PATIENT_PUBLIC_KEY_HEX = '02d5778d3acaf2e0c98d833e91bb3112b77ddeedf46850d6
 const PATIENT_PRIVATE_KEY_HEX = '3d4f8e48e193f416e44362da7d34f068a5ce8f358a6ab8e2a20d0b9abd9bd853';
 
 // Convert to usable key objects
-const patientPublicKey = PublicKey.fromStringECDSA(PATIENT_PUBLIC_KEY_HEX);
-const patientPrivateKey = PrivateKey.fromStringECDSA(PATIENT_PRIVATE_KEY_HEX);
+// const patientPublicKey = PublicKey.fromStringECDSA(PATIENT_PUBLIC_KEY_HEX);
+// const patientPrivateKey = PrivateKey.fromStringECDSA(PATIENT_PRIVATE_KEY_HEX);
 
 // Initialize Hedera client
 // let hederaClient: Client | null = null;
@@ -63,28 +63,90 @@ export async function POST(request: NextRequest) {
   try {
     const payload = await request.json();
     const { metadataCid, providerKey, providerDID, patientPrivateKey: patientPrivateKeyHex } = payload;
-    if (!metadataCid || !providerKey || !providerDID) {
+
+    const {nftId, recordDetails, passkey, patientDetails} = payload;
+
+    const institutionDetails = getUserById(payload.institutionDetails.id);
+    if (!institutionDetails) {
       return NextResponse.json(
-        { error: 'Missing required parameters' },
+        { error: 'Invalid institution ID' },
         { status: 400 }
       );
     }
+
+    // if (!metadataCid || !providerKey || !providerDID) {
+    //   return NextResponse.json(
+    //     { error: 'Missing required parameters' },
+    //     { status: 400 }
+    //   );
+    // }
+
+    // let nftDetails;
+    // try {
+    //   nftDetails = await mirrorNode.fetchNFTInfo(nftId);
+    // } catch (err) {
+    //   console.error('Failed to fetch NFT details:', err);
+    //   return NextResponse.json({ error: 'Failed to fetch NFT details' }, { status: 500 });
+    // }
+
+    // 2. Get metadata CID from NFT details
+    // let metadataCid;
+    // if (nftDetails && nftDetails.metadata) {
+    //   try {
+    //     metadataCid = Buffer.from(nftDetails.metadata, 'base64').toString('utf-8');
+    //   } catch (err) {
+    //     console.error('Invalid NFT metadata encoding:', err);
+    //     return NextResponse.json({ error: 'Invalid NFT metadata encoding' }, { status: 500 });
+    //   }
+    // } else {
+    //   return NextResponse.json({ error: 'NFT metadata not found' }, { status: 404 });
+    // }
+
+    // 3. Fetch metadata JSON from Pinata/IPFS
+    let metadata;
+    try {
+      const metaRes = await axios.get(`${config.pinata.gatewayUrl}${recordDetails.metadataCid}`);
+      metadata = metaRes.data;
+    } catch (err) {
+      console.error('Failed to fetch NFT metadata JSON:', err);
+      return NextResponse.json({ error: 'Failed to fetch NFT metadata JSON' }, { status: 500 });
+    }
+    // get metadata cid from nft
+    // provider key - passkey from prompt
+    // provider did from instution details
+    // patient private key no chance to get
 
     // 1. Verify access rights
     // For now, assuming access is granted if the encrypted key exists
 
     // 2. Get original metadata
-    const metadataRes = await axios.get(`${config.pinata.gatewayUrl}${metadataCid}`);
-    const metadata = metadataRes.data;
+    // const metadataRes = await axios.get(`${config.pinata.gatewayUrl}${metadataCid}`);
+    // const metadata = metadataRes.data;
 
     // 3. Get provider-specific encrypted key
-    const encryptedAesKey = Buffer.from(metadata.properties.encryptedAesKey, 'base64');
-    const iv = Buffer.from(metadata.properties.iv, 'hex');
-    const keyAuthTag = Buffer.from(metadata.properties.keyAuthTag, 'hex');
+    // get file id from 
+    const query = new FileContentsQuery()
+      .setFileId(payload.aesLockLocation.replace('hfs:', ''));
 
-    // 4. Decrypt with provider's key
-    const providerPubKey = PublicKey.fromStringECDSA(providerKey);
-    const sharedSecret = await computeHederaSharedSecret(patientPrivateKey, providerPubKey);
+    //Sign with client operator private key and submit the query to a Hedera network
+    const encryptedAesKey = await query.execute(client);
+
+    // console.log(contents.toString());
+    // const encryptedAesKey = Buffer.from(metadata.properties.encryptedAesKey, 'base64');
+    const iv = Buffer.from(payload.aesIv.data);
+    const keyAuthTag = Buffer.from(payload.providerAuthTag.data);
+
+    // // 4. Decrypt with provider's key - here it should be prov, private key and patient private key
+    const patientPublicKey = imageProcessor.getPublicKeyFromDID(patientDetails.did);
+    if (!patientPublicKey) {
+      return NextResponse.json({ error: 'Invalid patient DID format' }, { status: 400 });
+    }
+
+    const salt = institutionDetails.salt;
+    const saltBuffer = Buffer.from(salt.data);
+    const providerPrivateKey = imageProcessor.deriveHederaPrivateKey(passkey, saltBuffer);
+    
+    const sharedSecret = await computeHederaSharedSecret(providerPrivateKey, patientPublicKey);
     
     // Derive decryption key with proper typing
     const derivedKey = Buffer.from(
@@ -109,6 +171,7 @@ export async function POST(request: NextRequest) {
     const encryptedBuffer = Buffer.from(fileRes.data);
     const authTag = Buffer.from(metadata.properties.authTag, 'hex');
 
+    // const decipher = crypto.createDecipheriv('aes-256-gcm', Buffer.from(payload.aesKey.data), iv);
     const decipher = crypto.createDecipheriv('aes-256-gcm', aesKey, iv);
     decipher.setAuthTag(authTag);
     const decrypted = Buffer.concat([decipher.update(encryptedBuffer), decipher.final()]);

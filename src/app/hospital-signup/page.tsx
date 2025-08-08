@@ -43,7 +43,7 @@ const HospitalSignup = () => {
             setUser(data);
             toast({
               title: "Signup Successful",
-              description: `Institution ${data.name} registered with dHIS.`,
+              description: `Institution ${data.institutionName} registered with dHIS.`,
             });
             router.push("/hospital-dashboard");
           },

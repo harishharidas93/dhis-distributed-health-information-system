@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { PrivateKey } from '@hashgraph/sdk';
+import { PrivateKey, PublicKey } from '@hashgraph/sdk';
 import { WithImplicitCoercion } from 'buffer';
 import bs58 from 'bs58';
 
@@ -7,7 +7,7 @@ const generateChecksum = (buffer: any) => crypto.createHash('sha256').update(buf
 
 const deriveHederaPrivateKey = (password: string, salt: Buffer): PrivateKey => {
   const derivedSeed = crypto.pbkdf2Sync(password, salt, 100000, 32, 'sha256');
-  return PrivateKey.fromBytesED25519(derivedSeed);
+  return PrivateKey.fromBytesECDSA(derivedSeed);
 };
 
 /**
@@ -46,6 +46,26 @@ const decodeBase64 = (base64String: WithImplicitCoercion<string>) => {
   return Buffer.from(base64String, 'base64').toString('utf-8');
 };
 
+const getPublicKeyFromDID = (did: string) => {
+  // did:hedera:testnet:{encodedData}_{topicId}
+  const parts = did.split(':')[3]; // Get the identifier part
+  const encodedData = parts.split('_')[0]; // Get encoded part before underscore
+  const topicId = parts.split('_')[1]; // Get topic ID
+  
+  // Decode the base58 encoded data (contains pubKey + topicId)
+  const decoded = decodeFromBase58(encodedData);
+  
+  // Remove topicId from the end to get just the public key string
+  const topicIdBuffer = Buffer.from(topicId);
+  const publicKeyBuffer = decoded.slice(0, decoded.length - topicIdBuffer.length);
+  
+  // Convert back to string (this is how it was stored)
+  const publicKeyString = publicKeyBuffer.toString();
+  
+  // Create ECDSA PublicKey object from the string
+  return PublicKey.fromStringECDSA(publicKeyString);
+};
+
 export default {
   generateChecksum,
   deriveHederaPrivateKey,
@@ -54,4 +74,5 @@ export default {
   decodeFromBase58,
   encodeJsonToBase64,
   decodeBase64,
+  getPublicKeyFromDID,
 };

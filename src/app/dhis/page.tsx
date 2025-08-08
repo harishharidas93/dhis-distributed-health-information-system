@@ -24,7 +24,6 @@ const Dashboard = () => {
             </div>
             <nav className="hidden md:flex space-x-6">
               <Link href="/dhis" className="text-foreground hover:text-primary transition-colors">Dashboard</Link>
-              <Link href="/dhis/records" className="text-muted-foreground hover:text-primary transition-colors">My Records</Link>
               <Link href="/dhis/access-requests" className="text-muted-foreground hover:text-primary transition-colors">Access Requests</Link>
               <Link href="/dhis/emergency-access" className="text-muted-foreground hover:text-primary transition-colors">Emergency Access</Link>
               <Link href="/dhis/profile" className="text-muted-foreground hover:text-primary transition-colors">Profile</Link>
@@ -100,10 +99,6 @@ const Dashboard = () => {
               </Link>
             </Button>
             <Button asChild variant="outline" className="h-20 flex-col">
-              <Link href="/dhis/records">
-                <FileText className="h-6 w-6 mb-2" />
-                View Records
-              </Link>
             </Button>
             <Button asChild variant="outline" className="h-20 flex-col">
               <Link href="/dhis/access-requests">

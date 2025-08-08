@@ -51,6 +51,7 @@ const UploadRecord = () => {
         name: title,
         description,
         document: file || undefined,
+        walletAddress: user?.walletAddress || '',
       });
       return response;
   };
@@ -322,11 +323,6 @@ const UploadRecord = () => {
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                <Button asChild variant="outline">
-                  <Link href="/dhis/records">
-                    View All Records
-                  </Link>
-                </Button>
                 <Button asChild>
                   <Link href="/dhis">
                     Return to Dashboard

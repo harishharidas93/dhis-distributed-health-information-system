@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
 
   const salt = crypto.randomBytes(16); // ⚠️ Save this for future use
   const privateKey = imageProcesser.deriveHederaPrivateKey(data.privateKey, salt);
-  const pubKey = privateKey.publicKey.toStringRaw();
+  const pubKey = privateKey.publicKey.toStringDer();
   const did = `did:hedera:${config.hedera.network}:${imageProcesser.encodeBs58(`${pubKey}${topicId}`)}_${topicId}`;
   const didDocument = {
       '@context': 'https://www.w3.org/ns/did/v1',

@@ -11,6 +11,7 @@ type User = {
   type: 'hospital' | 'patient';
   did: string;
   createdAt: string;
+  salt: Buffer;
 };
 
 type Data = {

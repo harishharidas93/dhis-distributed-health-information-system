@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Upload, Lock, FileText, Coins, ArrowLeft, CheckCircle } from "lucide-react";
 import Link from "next/link";
 import { useToast } from "@/hooks/use-toast";
-import { useUploadMedicalRecord, useMintNFT, useCreateCollection } from '@/services/user.service';
+import { useUploadMedicalRecord, useMintNFT, useCreateCollection, useNFTs } from '@/services/user.service';
 import { useStore } from "@/store/store";
 
 const UploadRecord = () => {
@@ -26,13 +26,15 @@ const UploadRecord = () => {
   const uploadMedicalRecordMutation = useUploadMedicalRecord();
   const mintNFTMutation = useMintNFT();
   const createCollectionMutation = useCreateCollection();
-  const { user, collection, setCollection } = useStore();
-
+  const { user } = useStore();
+  const {data: nfts} = useNFTs(user?.walletAddress || '');
+  console.log('User:', nfts);
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       setFile(e.target.files[0]);
     }
   };
+
 
   const handleEncryptAndUpload = async () => {
     if (!file || !title) return;
@@ -42,6 +44,8 @@ const UploadRecord = () => {
         name: title,
         description,
         document: file || undefined,
+        walletAddress: user?.walletAddress as string,
+        collection: (nfts || []).length > 0 ? nfts?.[0].collection : undefined,
       });
       console.log('File uploaded successfully:', response);
       setCid(response.metadataCid);
@@ -67,8 +71,13 @@ const UploadRecord = () => {
     setIsMinting(true);
     try {
       // If no collection, create one first
-      let collectionId = collection || "";
-      if (!collection) {
+      let collectionId;
+      if ((nfts || []).length > 0) {
+        collectionId = nfts?.[0].collection; // Use first NFT's collection if available
+      }
+      console.log('Collection ID:', collectionId);
+      console.log('Nfts:', nfts);
+      if (!collectionId) {
         const newCollectionName = `Health Records - ${user?.patientName || user?.name || "User"}`;
         const createRes = await createCollectionMutation.mutateAsync({
           name: newCollectionName,
@@ -77,7 +86,6 @@ const UploadRecord = () => {
         });
         console.log('Collection created:', createRes);
         collectionId = createRes.collectionId;
-        setCollection(collectionId);
         toast({ title: "Collection Created", description: `Collection ID: ${collectionId}` });
       }
       const response = await mintNFTMutation.mutateAsync({
@@ -359,7 +367,7 @@ const UploadRecord = () => {
 
               <div className="grid grid-cols-2 gap-4">
                 <Button asChild variant="outline">
-                  <Link href="/records">
+                  <Link href="/dashboard">
                     View All Records
                   </Link>
                 </Button>

@@ -22,7 +22,6 @@ interface StoreState {
   accessToken: string;
   nfts: NFTResponse[];
   nftCount: number;
-  collection: string | null;
   accessRequests: AccessRequest[];
   pendingRequestsCount: number;
   setWalletAddress: (address: string) => void;
@@ -30,7 +29,6 @@ interface StoreState {
   setAccessToken: (token: string) => void;
   setNFTs: (nfts: NFTResponse[]) => void;
   setNFTCount: (count: number) => void;
-  setCollection: (collection: string | null) => void;
   setAccessRequests: (requests: AccessRequest[]) => void;
   setPendingRequestsCount: (count: number) => void;
 }
@@ -43,7 +41,6 @@ export const useStore = create<StoreState>()(
       accessToken: '',
       nfts: [],
       nftCount: 0,
-      collection: null,
       accessRequests: [],
       pendingRequestsCount: 0,
       setWalletAddress: (address: string) => set({ walletAddress: address }),
@@ -51,7 +48,6 @@ export const useStore = create<StoreState>()(
       setAccessToken: (token: string) => set({ accessToken: token }),
       setNFTs: (nfts: NFTResponse[]) => set({ nfts }),
       setNFTCount: (count: number) => set({ nftCount: count }),
-      setCollection: (collection: string | null) => set({ collection }),
       setAccessRequests: (requests: AccessRequest[]) => set({ accessRequests: requests }),
       setPendingRequestsCount: (count: number) => set({ pendingRequestsCount: count }),
     }),

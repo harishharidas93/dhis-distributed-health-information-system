@@ -3,9 +3,17 @@ import mirrorNode from '@/utils/mirrorNode';
 import axios from 'axios';
 import { config } from '@/config/config';
 import crypto from 'crypto';
-import { TopicMessageSubmitTransaction } from '@hashgraph/sdk';
+import { FileCreateTransaction, PrivateKey, PublicKey, TopicMessageSubmitTransaction } from '@hashgraph/sdk';
 import { hederaClient } from '@/services/hedera.client';
 import { getUserById } from '@/services/lowdb.service';
+import imageProcessor from '@/utils/imageProcessor';
+import { PinataSDK } from 'pinata';
+
+
+const pinata = new PinataSDK({
+  pinataJwt: config.pinata.jwt,
+  pinataGateway: config.pinata.gatewayUrl,
+});
 
 const client = hederaClient();
 // Helper to get topicId from userDid
@@ -104,6 +112,12 @@ export async function GET(request: NextRequest) {
   }
 }
 
+async function computeHederaSharedSecret(privateKey: PrivateKey, publicKey: PublicKey): Promise<Buffer> {
+  const ecdh = crypto.createECDH('secp256k1');
+  ecdh.setPrivateKey(Buffer.from(privateKey.toBytesRaw()));
+  return ecdh.computeSecret(Buffer.from(publicKey.toBytesRaw()));
+}
+
 export async function PATCH(request: NextRequest) {
   try {
     const { 
@@ -117,6 +131,7 @@ export async function PATCH(request: NextRequest) {
       requestedAt,
       requestId: requestIdFromUI,
       requestType,
+      passkey
     } = await request.json();
     if (!nftId) {
       return NextResponse.json(
@@ -126,7 +141,7 @@ export async function PATCH(request: NextRequest) {
     }
     const userDetails = getUserById(patientId);
     const institutionDetails = getUserById(instituitionId);
-    if (!userDetails || !institutionDetails) {
+      if (!userDetails || !institutionDetails) {
       return NextResponse.json(
         { error: 'Invalid patient or institution ID' },
         { status: 400 }
@@ -165,20 +180,91 @@ export async function PATCH(request: NextRequest) {
     }
 
     // 5. Get topic id from patientDID (last part after last colon or underscore)
-    let patientTopicId = null;
-    // Split by both colon and underscore, take last segment
-    const didParts = userDetails.did.split(/[:_]/);
-    if (didParts.length > 0) {
-      patientTopicId = didParts[didParts.length - 1];
-    }
+    const patientTopicId = getTopicIdFromDid(userDetails.did);
     if (!patientTopicId) {
       return NextResponse.json({ error: 'Invalid patient DID format' }, { status: 400 });
+    }
+
+    let aesKeyToUnlock = null, storageLocation = null, aesIv = null, providerAuthTag = null;
+    if (requestType === 'access-approval') {
+      const iv = Buffer.from(metadataJson.properties.iv, 'hex');
+      aesIv = iv;
+      const authTag = Buffer.from(metadataJson.properties.authTag, 'hex');
+      const encryptedAesKey = Buffer.from(metadataJson.properties.encryptedAesKey, 'base64');
+      const ephemeralPublicKey = PublicKey.fromStringECDSA(metadataJson.properties.ephemeralPublicKey);
+      const keyAuthTag = Buffer.from(metadataJson.properties.keyAuthTag, 'hex');
+      
+      const salt = userDetails.salt;
+      const saltBuffer = Buffer.from(salt.data);
+      const patientPrivateKey = imageProcessor.deriveHederaPrivateKey(passkey, saltBuffer);
+      const sharedSecret = await computeHederaSharedSecret(patientPrivateKey, ephemeralPublicKey);
+      // Derive decryption key with proper typing
+      const derivedKey = Buffer.from(
+        crypto.hkdfSync(
+          'sha256',
+          sharedSecret,
+          Buffer.from(''), // salt
+          Buffer.from(''), // info
+          32
+        )
+      );
+  
+      const keyDecipher = crypto.createDecipheriv('aes-256-gcm', derivedKey, iv);
+      keyDecipher.setAuthTag(keyAuthTag);
+      aesKeyToUnlock = Buffer.concat([
+        keyDecipher.update(encryptedAesKey),
+        keyDecipher.final()
+      ]);
+
+      const providerPublicKey = imageProcessor.getPublicKeyFromDID(institutionDetails.did);
+      if (!providerPublicKey) {
+        return NextResponse.json({ error: 'Invalid institution DID format' }, { status: 400 });
+      }
+      // // 3. Re-encrypt for provider
+      const providerSharedSecret = await computeHederaSharedSecret(patientPrivateKey, providerPublicKey);
+      
+      const providerDerivedKey = Buffer.from( 
+          crypto.hkdfSync(
+          'sha256',
+          providerSharedSecret,
+          Buffer.from(''),
+          Buffer.from(''),
+          32
+        )
+      );
+      
+          const keyCipher = crypto.createCipheriv('aes-256-gcm', providerDerivedKey, iv);
+          const encryptedForProvider = Buffer.concat([
+            keyCipher.update(aesKeyToUnlock),
+            keyCipher.final()
+          ]);
+          providerAuthTag = keyCipher.getAuthTag();
+
+      // const file = new File([encryptedForProvider], `provider-key-${requestId}.bin`, {
+      //   type: 'application/octet-stream',
+      //   lastModified: Date.now()
+      // });
+
+      // const upload = await pinata.upload.public.file(file);
+      // storageLocation = `ipfs:${upload.cid}`;
+      const fileTx = await new FileCreateTransaction()
+        .setContents(encryptedForProvider)
+        .setKeys([PublicKey.fromStringECDSA(config.hedera.hfsKey.publicKey)])
+        .freezeWith(client);
+      const signTx = await fileTx.sign(PrivateKey.fromStringECDSA(config.hedera.hfsKey.privateKey));
+      const submitTx = await signTx.execute(client);
+      const receipt = await submitTx.getReceipt(client);
+      storageLocation = `hfs:${receipt.fileId!.toString()}`;
+
     }
 
     const requestId = requestIdFromUI || crypto.randomUUID();
     // Submit to HCS
     const message = JSON.stringify({
       requestType,
+      aesLockLocation: storageLocation,
+      aesIv,
+      providerAuthTag: providerAuthTag,
       urgency,
       requestedAt,
       requestId,
@@ -237,3 +323,4 @@ export async function PATCH(request: NextRequest) {
     );
   }
 }
+

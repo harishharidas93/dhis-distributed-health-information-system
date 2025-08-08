@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
     const walletAddress = searchParams.get('walletAddress');
     
     const nfts = await mirrorNode.fetchAllNFTs(walletAddress as string);
-    const cutoffTimestamp = 1754265600; // 2025-08-04T00:00:00Z UTC
+    const cutoffTimestamp = 1754601977.949733268; // 2025-08-04T00:00:00Z UTC
     const filteredNFTs = nfts.filter(nft => parseFloat(nft.created_timestamp) >= cutoffTimestamp);
     for (const nft of filteredNFTs) {
       if (nft.metadata) {
@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
           nft.id = `${nft.token_id}.${nft.serial_number}`;
           nft.name = meta.name || nft.name;
           // nft.imageUrl = meta.image || nft.image;
-          nft.collection = { name: meta.properties?.collection_name, id: meta.properties?.collection_id };
+          nft.collection = nft.token_id;
           nft.description = meta.description || nft.description;
           nft.createdAt = timestampToHuman(nft.created_timestamp);
         } catch (err) {

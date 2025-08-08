@@ -34,7 +34,7 @@ const Signup = () => {
             setUser(user);
             toast({
               title: "Signup Successful",
-              description: `Welcome, ${user.name}`,
+              description: `Welcome, ${user.patientName}`,
             });
             router.push("/dashboard");
           },

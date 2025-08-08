@@ -4,6 +4,7 @@ import { useGrantAccessRequest, useRejectAccessRequest } from "@/services/user.s
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { 
   ArrowLeft, 
@@ -19,10 +20,14 @@ import Link from "next/link";
 import { useStore } from "@/store/store";
 import { AccessRequest, AccessRequestPayload } from "@/types/accessRequest";
 import { useFetchAccessRequests } from "@/services/user.service";
-import { useEffect } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { useEffect, useState } from "react";
 
 const AccessRequests = () => {
   const { user, accessRequests, setAccessRequests, setPendingRequestsCount } = useStore();
+  const [showPasskeyModal, setShowPasskeyModal] = useState(false);
+  const [passkey, setPasskey] = useState("");
+  const [selectedRequest, setSelectedRequest] = useState<{requestId: string, nftId: string, institutionId: string} | null>(null);
   const grantMutation = useGrantAccessRequest();
   const rejectMutation = useRejectAccessRequest();
   
@@ -34,7 +39,7 @@ const AccessRequests = () => {
     }
   }, [accessRequestsResponse]);
 
-  const handleGrantAccess = (requestId: string, nftId: string, instituitionId: string) => {
+  const handleGrantAccess = (requestId: string, nftId: string, instituitionId: string, passkey: string) => {
     const request = accessRequests.find((r: { requestId: string; }) => r.requestId === requestId);
     if (!request) return;
     const payload: AccessRequestPayload = {
@@ -43,6 +48,7 @@ const AccessRequests = () => {
       instituitionId,
       patientId: user?.id || "",
       nftId,
+      passkey,
     };
     grantMutation.mutate(payload, {
       onSuccess: () => {
@@ -53,6 +59,10 @@ const AccessRequests = () => {
         setAccessRequests(updatedRequests);
         const pendingCount = updatedRequests.filter((req: AccessRequest) => req.status === 'pending').length;
         setPendingRequestsCount(pendingCount);
+        setShowPasskeyModal(false);
+        setPasskey("");
+        setSelectedRequest(null);
+
       }
     });
   };
@@ -184,7 +194,15 @@ const AccessRequests = () => {
 
                       <div className="flex space-x-2">
                         <Button
-                          onClick={() => handleGrantAccess(request.requestId, request.nftId, request.institutionDetails.id)}
+                        onClick={() => {
+                            setSelectedRequest({
+                              requestId: request.requestId,
+                              nftId: request.nftId,
+                              institutionId: request.institutionDetails.id
+                            });
+                            setShowPasskeyModal(true);
+                          }}
+                          // onClick={() => handleGrantAccess(request.requestId, request.nftId, request.institutionDetails.id)}
                           className="flex-1"
                           disabled={grantMutation.isPending || rejectMutation.isPending}
                         >
@@ -306,6 +324,34 @@ const AccessRequests = () => {
           )}
         </div>
       </div>
+      <Dialog open={showPasskeyModal} onOpenChange={setShowPasskeyModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Enter Passkey</DialogTitle>
+          </DialogHeader>
+          <Input
+            type="password"
+            placeholder="Enter your passkey"
+            value={passkey}
+            onChange={(e) => setPasskey(e.target.value)}
+          />
+          <DialogFooter>
+            <Button
+              onClick={() => {
+                if (selectedRequest && passkey) {
+                  handleGrantAccess(selectedRequest.requestId, selectedRequest.nftId, selectedRequest.institutionId, passkey);
+                }
+              }}
+              disabled={grantMutation.isPending || !passkey}
+            >
+              {grantMutation.isPending ? "Granting..." : "Submit"}
+            </Button>
+            <Button variant="ghost" onClick={() => setShowPasskeyModal(false)}>
+              Cancel
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

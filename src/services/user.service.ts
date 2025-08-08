@@ -82,6 +82,7 @@ export interface MedicalRecord {
   description: string;
   collection?: string | null; // Optional collection object
   document?: File;
+  walletAddress: string;
 }
 
 export interface CollectionData {
@@ -172,6 +173,7 @@ export const nftAPI = {
     if (medicalRecord.document) {
       formData.append('document', medicalRecord.document);
     }
+    formData.append('walletAddress', medicalRecord.walletAddress);
 
     const response = await apiClient.put(API_CONFIG.ENDPOINTS.UPLOAD_MEDICAL_RECORD, formData, {
       headers: {

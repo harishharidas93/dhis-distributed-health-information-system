@@ -2,14 +2,12 @@
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { 
   Building2, 
   FileText,
   Shield,
   Upload, 
   Search, 
-  Activity,
   Eye,
   Clock,
   ArrowRight,
@@ -21,16 +19,6 @@ import { useStore } from "@/store/store";
 import { useRouter } from "next/navigation";
 import { disconnectHashConnect } from "@/services/hashconnect";
 import { useHospitalDashboardQueries } from "@/services/user.service";
-
-
-
-interface RecentActivity {
-  id: string;
-  type: "record_created" | "access_requested" | "access_granted" | "nft_minted";
-  description: string;
-  timestamp: string;
-  status: "completed" | "pending" | "failed";
-}
 
 const HospitalDashboard = () => {
   const router = useRouter();
@@ -47,60 +35,10 @@ const HospitalDashboard = () => {
   console.log("Hospital Access Requests:", accessRequestsData);
   console.log("Pending Requests Count:", pendingRequestsCount);
 
-  const recentActivity: RecentActivity[] = [
-    {
-      id: "1",
-      type: "record_created",
-      description: "Lab results uploaded for Patient #P-2024-001",
-      timestamp: "2024-01-15T14:30:00Z",
-      status: "completed",
-    },
-    {
-      id: "2",
-      type: "access_requested",
-      description: "Access requested for Patient #P-2024-002 medical imaging",
-      timestamp: "2024-01-15T13:45:00Z",
-      status: "pending",
-    },
-    {
-      id: "3",
-      type: "nft_minted",
-      description: "Dynamic NFT minted for Patient #P-2024-003",
-      timestamp: "2024-01-15T12:20:00Z",
-      status: "completed",
-    },
-    {
-      id: "4",
-      type: "access_granted",
-      description: "Access granted for Patient #P-2024-004 consultation notes",
-      timestamp: "2024-01-15T11:15:00Z",
-      status: "completed",
-    },
-  ];
-
-  const getActivityIcon = (type: string) => {
-    switch (type) {
-      case "record_created": return FileText;
-      case "access_requested": return Eye;
-      case "access_granted": return Shield;
-      case "nft_minted": return Activity;
-      default: return FileText;
-    }
-  };
-
   const handleLogout = () => {
     disconnectHashConnect();
     setUser(null);
     router.push("/login");
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "completed": return "bg-green-500/20 text-green-700 border-green-500/30";
-      case "pending": return "bg-yellow-500/20 text-yellow-700 border-yellow-500/30";
-      case "failed": return "bg-red-500/20 text-red-700 border-red-500/30";
-      default: return "bg-gray-500/20 text-gray-700 border-gray-500/30";
-    }
   };
 
   return (
@@ -145,18 +83,18 @@ const HospitalDashboard = () => {
             </Link>
           </Button>
           <Button 
-            disabled={pendingRequestsCount === 0} 
+            disabled={accessRequestsData.length === 0} 
             size="lg" 
             variant="outline" 
             className="h-20 flex-col gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-background"
             onClick={() => {
-              if (pendingRequestsCount > 0) {
+              if (accessRequestsData.length > 0) {
                 router.push('/hospital-access-request?tab=manage');
               }
             }}
           >
             <Clock className="h-6 w-6" />
-            Pending Requests {pendingRequestsCount > 0 ? `(${pendingRequestsCount})` : ''}
+            Pending Requests {accessRequestsData.length > 0 ? `(${accessRequestsData.length})` : ''}
           </Button>
         </div>
         
