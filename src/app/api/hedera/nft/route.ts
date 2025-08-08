@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
     const walletAddress = searchParams.get('walletAddress');
     
     const nfts = await mirrorNode.fetchAllNFTs(walletAddress as string);
-    const cutoffTimestamp = 1754601977.949733268; // 2025-08-04T00:00:00Z UTC
+    const cutoffTimestamp = 1754650500.0; // 2025-08-04T00:00:00Z UTC
     const filteredNFTs = nfts.filter(nft => parseFloat(nft.created_timestamp) >= cutoffTimestamp);
     for (const nft of filteredNFTs) {
       if (nft.metadata) {

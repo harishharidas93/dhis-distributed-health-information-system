@@ -10,42 +10,22 @@ export const useFetchAccessRequests = (userDid: string) => {
   });
 };
 
-export const useGrantAccessRequest = () => {
+export const useModifyAccessRequest = () => {
   return useMutation({
-    mutationFn: grantAccessRequest,
+    mutationFn: modifyAccessRequest,
   });
 };
 
-export const useRejectAccessRequest = () => {
-  return useMutation({
-    mutationFn: rejectAccessRequest,
-  });
-};
 export async function fetchAccessRequests({ userDid }: { userDid: string; }) {
   const response = await apiClient.get(`${API_CONFIG.ENDPOINTS.ACCESS_REQUESTS}?userDid=${encodeURIComponent(userDid)}`);
   return response.data;
 }
 
-export async function grantAccessRequest(payload: AccessRequestPayload) {
+export async function modifyAccessRequest(payload: AccessRequestPayload) {
   const response = await apiClient.patch(API_CONFIG.ENDPOINTS.ACCESS_REQUESTS, payload);
   return response.data;
 }
 
-export async function rejectAccessRequest(payload: AccessRequestPayload) {
-  const response = await apiClient.patch(API_CONFIG.ENDPOINTS.ACCESS_REQUESTS, payload);
-  return response.data;
-}
-
-export const accessRequestByProvider = async (payload: any): Promise<any> => {
-  const response = await apiClient.patch(API_CONFIG.ENDPOINTS.ACCESS_REQUESTS, payload);
-  return response.data;
-};
-
-export const useAccessRequestByProvider = () => {
-  return useMutation({
-    mutationFn: accessRequestByProvider,
-  });
-};
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { userAPI, SignupPayload, SignupResponse, LoginPayload } from '@/lib/api/user';
 // Login React Query Hook
@@ -309,7 +289,7 @@ export const useCreateCollection = () => {
 // Hospital Dashboard Queries
 export const useHospitalDashboardQueries = (hospitalDid: string) => {
   // Single query for access requests
-  const { data: accessRequestsData = [], isLoading, isError, refetch } = useQuery({
+  const { data: accessRequestsData = [], isLoading, isError, refetch, isRefetchError } = useQuery({
     queryKey: ['hospitalAccessRequests', hospitalDid],
     queryFn: () => fetchAccessRequests({ userDid: hospitalDid }),
     enabled: !!hospitalDid,
@@ -329,8 +309,9 @@ export const useHospitalDashboardQueries = (hospitalDid: string) => {
     approvedRequestsCount,
     rejectedRequestsCount,
     totalRequestsCount,
-    isLoading,
-    isError,
-    refetch
+    isLoading: isLoading,
+    isError: isError || isRefetchError,
+    refetch,
+    isSuccess: !isLoading && !isError && !isRefetchError && accessRequestsData.length > 0
   };
 };

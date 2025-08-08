@@ -3,6 +3,7 @@ export interface AccessRequest {
   urgency: "low" | "medium" | "high" | "emergency";
   requestedAt: string;
   requestId: string;
+  expirationTime: string;
   patientDetails: {
     id: string;
     name: string;
@@ -11,7 +12,7 @@ export interface AccessRequest {
   nftId: string;
   reason: string;
   accessType: string;
-  requestedDuration: number;
+  requestedDuration?: number;
   institutionDetails: {
     id: string;
     name: string;

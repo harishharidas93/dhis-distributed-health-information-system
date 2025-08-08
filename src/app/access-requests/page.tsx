@@ -1,6 +1,6 @@
 'use client';
 
-import { useGrantAccessRequest, useRejectAccessRequest } from "@/services/user.service";
+import { useModifyAccessRequest } from "@/services/user.service";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -28,8 +28,8 @@ const AccessRequests = () => {
   const [showPasskeyModal, setShowPasskeyModal] = useState(false);
   const [passkey, setPasskey] = useState("");
   const [selectedRequest, setSelectedRequest] = useState<{requestId: string, nftId: string, institutionId: string} | null>(null);
-  const grantMutation = useGrantAccessRequest();
-  const rejectMutation = useRejectAccessRequest();
+  const grantMutation = useModifyAccessRequest();
+  const rejectMutation = useModifyAccessRequest();
   
   const { data: accessRequestsResponse } = useFetchAccessRequests(user?.did || '');
 
@@ -49,6 +49,7 @@ const AccessRequests = () => {
       patientId: user?.id || "",
       nftId,
       passkey,
+      requestedDuration: request.requestedDuration || 0,
     };
     grantMutation.mutate(payload, {
       onSuccess: () => {
@@ -175,6 +176,10 @@ const AccessRequests = () => {
                   <CardContent>
                     <div className="space-y-4">
                       <div>
+                        <h4 className="font-medium mb-1">Request id:</h4>
+                        <p className="text-sm text-muted-foreground">{request.requestId}</p>
+                      </div>
+                      <div>
                         <h4 className="font-medium mb-1">Reason for Access:</h4>
                         <p className="text-sm text-muted-foreground">{request.reason}</p>
                       </div>
@@ -184,6 +189,15 @@ const AccessRequests = () => {
                         <div className="flex flex-wrap gap-2">
                           <Badge variant="outline">
                             {request.recordDetails.name}
+                          </Badge>
+                        </div>
+                      </div>
+
+                      <div>
+                        <h4 className="font-medium mb-2">Duration requested:</h4>
+                        <div className="flex flex-wrap gap-2">
+                          <Badge variant="outline">
+                            {request.requestedDuration ? `${request.requestedDuration} mins` : 'One time'}
                           </Badge>
                         </div>
                       </div>

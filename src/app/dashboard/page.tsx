@@ -53,19 +53,6 @@ const Dashboard = () => {
   const nftsData = results[0].data || [];
   const accessRequestsData = results[1].data || [];
 
-
-  // setNFTs(nftsData);
-  // setAccessRequests(accessRequestsData);
-  // useEffect(() => {
-  //   if (nftsData) {
-  //   }
-  //   if (accessRequestsData) {
-  //   }
-  // }, [nftsData, accessRequestsData]);
-
-  console.log("NFTs Data:", nftsData);
-  console.log("Access Requests Data:", accessRequestsData);
-  // Calculate values directly from the data
   const currentNFTCount = nftsData?.length || 0;
   const currentPendingCount = accessRequestsData?.filter((req: any) => req.status === 'pending').length || 0;
 

@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useStore } from "@/store/store";
-import { useAccessRequestByProvider, useHospitalDashboardQueries } from '@/services/user.service';
+import { useModifyAccessRequest, useHospitalDashboardQueries } from '@/services/user.service';
 import { Eye, Clock, ArrowLeft, Send, FileText, CircleX } from "lucide-react";
 import { AccessRequest, AccessRequestPayload } from "@/types/accessRequest";
 import Link from "next/link";
@@ -34,19 +34,68 @@ const HospitalAccessRequest = () => {
   const [activeTab, setActiveTab] = useState<"create" | "manage">(initialTab);
   const [newRequest, setNewRequest] = useState(initialRequestDetails);
 
-  const [requests, setRequests] = useState<AccessRequest[]>([]);
   const {
     accessRequestsData,
     pendingRequestsCount,
     isLoading,
-    isError
+    isError,
+    refetch,
   } = useHospitalDashboardQueries(user?.did || '');
 
   console.log("Hospital Access Requests:", accessRequestsData);
   console.log("Pending Requests Count:", pendingRequestsCount);
   const { toast } = useToast();
-  const accessRequestMutation = useAccessRequestByProvider();
+    const accessRequestMutation = useModifyAccessRequest();
+  
+  const handleRevokeRequest = async (request: AccessRequest) => {
+    if (!user?.did) {
+      toast({
+        title: "Error",
+        description: "User information not available.",
+        variant: "destructive",
+      });
+      return;
+    }
 
+    setRevokingRequestId(request.requestId);
+
+    try {
+      const payload: AccessRequestPayload = {
+        requestType: "access-revoke",
+        requestId: request.requestId,
+        patientId: request.patientDetails.id,
+        instituitionId: user.id,
+        nftId: request.nftId,
+      };
+
+      await accessRequestMutation.mutateAsync(payload);
+
+      toast({
+        title: "Request Revoked",
+        description: "Access request has been successfully revoked.",
+      });
+
+      // Refetch data after successful revocation
+      setTimeout(async () => {
+        try {
+          await refetch();
+          console.log("Data refetched after revocation");
+        } catch (error) {
+          console.error("Failed to refetch data after revocation:", error);
+        }
+      }, 5000);
+
+    } catch (error: any) {
+      toast({
+        title: "Revocation Failed",
+        description: error?.message || "Could not revoke access request.",
+        variant: "destructive",
+      });
+    } finally {
+      setRevokingRequestId(null);
+    }
+  };
+  
   const handleSubmitRequest = async () => {
     if (!newRequest.patientId || !newRequest.nftId || !newRequest.reason) {
       toast({
@@ -56,6 +105,7 @@ const HospitalAccessRequest = () => {
       });
       return;
     }
+    
     const payload: AccessRequestPayload = {
       requestType: "access-request",
       urgency: newRequest.urgency,
@@ -64,16 +114,32 @@ const HospitalAccessRequest = () => {
       patientId: newRequest.patientId,
       nftId: newRequest.nftId,
       reason: newRequest.reason,
-      requestedDuration: Number(newRequest.requestedDuration) || 60,
+      requestedDuration: Number(newRequest.requestedDuration),
     };
+
     try {
-      const response = await accessRequestMutation.mutateAsync(payload);
-      setRequests([response.message, ...requests]);
+      // Make the actual API call and wait for response
+      await accessRequestMutation.mutateAsync(payload);
+      
       setNewRequest(initialRequestDetails);
+      
       toast({
         title: "Access Request Submitted",
-        description: "Your request has been sent to the patient for approval.",
+        description: "Your request has been successfully submitted to the blockchain.",
       });
+
+      setIsRefetching(true);
+      setTimeout(async () => {
+        try {
+          await refetch();
+          console.log("Data refetched successfully");
+        } catch (error) {
+          console.error("Failed to refetch data:", error);
+        } finally {
+          setIsRefetching(false);
+        }
+      }, 5000);
+
     } catch (error: any) {
       toast({
         title: "Submission Failed",
@@ -87,7 +153,9 @@ const HospitalAccessRequest = () => {
   const [showPasskeyModal, setShowPasskeyModal] = useState(false);
   const [passkey, setPasskey] = useState("");
   const [pendingSessionRequest, setPendingSessionRequest] = useState<AccessRequest | null>(null);
-
+  const [isRefetching, setIsRefetching] = useState(false);
+  const [revokingRequestId, setRevokingRequestId] = useState<string | null>(null);
+  
   const handleAccess = (request: AccessRequest) => {
     setPendingSessionRequest(request);
     setShowPasskeyModal(true);
@@ -116,7 +184,7 @@ const HospitalAccessRequest = () => {
         const url = URL.createObjectURL(blob);
         setFileUrl(url);
       }
-    } catch (err) {
+    } catch {
       toast({
         title: 'Session Start Failed',
         description: 'Could not start session. Please try again.',
@@ -181,6 +249,21 @@ const HospitalAccessRequest = () => {
             <span className="inline-block bg-destructive/10 text-destructive px-4 py-2 rounded mb-2">Failed to load access requests</span>
           </div>
         )}
+        
+        {isRefetching && (
+          <div className="text-center py-4">
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mx-auto"></div>
+            <p className="text-muted-foreground mt-2 text-sm">Refreshing data...</p>
+          </div>
+        )}
+        
+        {accessRequestMutation.isError && (
+          <div className="text-center py-4">
+            <span className="inline-block bg-destructive/10 text-destructive px-4 py-2 rounded mb-2">
+              Failed to modify request. Please try again.
+            </span>
+          </div>
+        )}
         {/* Tab Navigation */}
         <div className="flex space-x-1 bg-muted p-1 rounded-lg mb-6 w-fit">
           <Button
@@ -195,7 +278,7 @@ const HospitalAccessRequest = () => {
           </Button>
           <Button
             variant={activeTab === "manage" ? "default" : "ghost"}
-            disabled={accessRequestsData.length === 0}
+            disabled={isLoading || accessRequestsData.length === 0}
             size="sm"
             onClick={() => {
               setActiveTab("manage");
@@ -261,16 +344,19 @@ const HospitalAccessRequest = () => {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="requestedDuration">Requested Session Duration (minutes)</Label>
+                  <Label htmlFor="requestedDuration">Gets expired in (minutes)</Label>
                   <Input
                     id="requestedDuration"
                     type="number"
-                    placeholder="60"
+                    placeholder="in minutes (leave blank for single-use)"
                     value={newRequest.requestedDuration}
                     onChange={(e) =>
                       setNewRequest({ ...newRequest, requestedDuration: e.target.value })
                     }
                   />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    If left blank or zero, access will be treated as single-use only.
+                  </p>
                 </div>
               </div>
               <div className="space-y-2">
@@ -326,14 +412,17 @@ const HospitalAccessRequest = () => {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {[...requests, ...accessRequestsData].map((request) => (
+                            <div className="space-y-4">
+                {accessRequestsData.map((request: AccessRequest) => (
                   <div key={request.requestId} className="border rounded-lg p-4">
                     <div className="flex items-start justify-between mb-3">
                       <div>
-                        <h4 className="font-medium">{request.patientDetails.name}</h4>
+                        <h4 className="font-medium">{request.patientDetails?.name || 'Unknown Patient'}</h4>
                         <p className="text-sm text-muted-foreground">
-                          Patient ID: {request.patientDetails.id}
+                          Request ID: {request.requestId || 'N/A'}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          Patient ID: {request.patientDetails?.id || 'N/A'}
                         </p>
                         <p className="text-sm text-muted-foreground">
                           NFT ID: {request.nftId}
@@ -355,14 +444,16 @@ const HospitalAccessRequest = () => {
                           {new Date(request.requestedAt).toLocaleString()}
                         </p>
                       </div>
-                      {request.requestedDuration && (
-                        <div>
-                          <p className="text-sm font-medium">Session Time</p>
+                                              <div>
+                          <p className="text-sm font-medium">Access</p>
                           <p className="text-sm text-muted-foreground">
-                            {request.requestedDuration} minutes
+                          {request.status === "approved" && request.expirationTime
+                            ? `Valid till ${new Date(request.expirationTime).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })} (IST)`
+                            : request.requestedDuration === 0
+                            ? 'One time access'
+                            : `Valid for ${request.requestedDuration} minutes once approved`}
                           </p>
                         </div>
-                      )}
                     </div>
                     <div className="mb-4">
                       <p className="text-sm font-medium mb-1">Reason</p>
@@ -380,47 +471,34 @@ const HospitalAccessRequest = () => {
                       </div>
                     )}
                     {request.status === "approved" && (
-                      <Button onClick={() => handleAccess(request)} size="sm" className="mt-2">
+                      <Button onClick={() => handleAccess(request)} size="sm" className="mt-2 mr-2">
                         <FileText className="h-4 w-4 mr-2" />
                         Start Session
                       </Button>
                     )}
-      {/* <div>
-        {showPasskeyModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-            <div className="bg-white dark:bg-zinc-900 rounded-lg shadow-lg p-6 w-full max-w-sm">
-              <h2 className="text-lg font-semibold mb-4">Enter Passkey</h2>
-              <input
-                type="password"
-                className="w-full border rounded px-3 py-2 mb-4"
-                placeholder="Enter your passkey"
-                value={passkey}
-                onChange={e => setPasskey(e.target.value)}
-              />
-              <div className="flex justify-end gap-2">
-                <Button
-                  onClick={handleSessionStart}
-                  disabled={!passkey}
-                >
-                  Start Session
-                </Button>
-                <Button variant="ghost" onClick={() => { setShowPasskeyModal(false); setPasskey(""); setPendingSessionRequest(null); }}>
-                  Cancel
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
-      </div> */}
                     {request.status === "rejected" && (
                       <div className="text-sm text-destructive">
                         Your request was rejected by the patient
                       </div>
                     )}
-                    {request.status === "pending" && (
-                      <Button size="sm" className="mt-2 bg-gray-500 hover:bg-gray-400">
-                        <CircleX className="h-4 w-4 mr-2" />
-                        Revoke request
+                    {(request.status === "pending" || request.status === "approved") && (
+                      <Button 
+                        size="sm" 
+                        className="mt-2 bg-gray-500 hover:bg-gray-400"
+                        onClick={() => handleRevokeRequest(request)}
+                        disabled={revokingRequestId === request.requestId || accessRequestMutation.isPending}
+                      >
+                        {revokingRequestId === request.requestId ? (
+                          <>
+                            <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white mr-2"></div>
+                            Revoking...
+                          </>
+                        ) : (
+                          <>
+                            <CircleX className="h-4 w-4 mr-2" />
+                            Revoke request
+                          </>
+                        )}
                       </Button>
                     )}
                     {request.status === "pending" && (
@@ -438,7 +516,7 @@ const HospitalAccessRequest = () => {
                     )}
                   </div>
                 ))}
-                {requests.length === 0 && (
+                {accessRequestsData.length === 0 && (
                   <div className="text-center py-8 text-muted-foreground">
                     No access requests found
                   </div>

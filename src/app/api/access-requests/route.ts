@@ -3,17 +3,18 @@ import mirrorNode from '@/utils/mirrorNode';
 import axios from 'axios';
 import { config } from '@/config/config';
 import crypto from 'crypto';
-import { FileCreateTransaction, PrivateKey, PublicKey, TopicMessageSubmitTransaction } from '@hashgraph/sdk';
+import { FileCreateTransaction, PrivateKey, PublicKey, Timestamp, TopicMessageSubmitTransaction } from '@hashgraph/sdk';
 import { hederaClient } from '@/services/hedera.client';
 import { getUserById } from '@/services/lowdb.service';
 import imageProcessor from '@/utils/imageProcessor';
-import { PinataSDK } from 'pinata';
+import { scheduleExpiryMessage } from '@/utils/jobs';
+// import { PinataSDK } from 'pinata';
 
 
-const pinata = new PinataSDK({
-  pinataJwt: config.pinata.jwt,
-  pinataGateway: config.pinata.gatewayUrl,
-});
+// const pinata = new PinataSDK({
+//   pinataJwt: config.pinata.jwt,
+//   pinataGateway: config.pinata.gatewayUrl,
+// });
 
 const client = hederaClient();
 // Helper to get topicId from userDid
@@ -87,12 +88,10 @@ export async function GET(request: NextRequest) {
 
     // Filter by type if needed
     const result = Array.from(requestMap.values());
-    const bypassList = ['2841eb51-873b-4936-b73c-873fab6706b0'];
 
     // Only include requests with requestedAt >= 2025-08-08T00:00:00.000Z
-    const minDate = new Date('2025-08-07T16:30:00.000Z');
+    const minDate = new Date('2025-08-08T10:55:00.000Z');
     const filtered = result.filter((msg: any) => {
-      if (bypassList.includes(msg.requestId)) return false;
       if (!msg.requestedAt) return false;
       const reqDate = new Date(msg.requestedAt);
       return reqDate >= minDate;
@@ -184,11 +183,16 @@ export async function PATCH(request: NextRequest) {
     if (!patientTopicId) {
       return NextResponse.json({ error: 'Invalid patient DID format' }, { status: 400 });
     }
+    const hospitalTopicId = getTopicIdFromDid(institutionDetails.did);
+    if (!hospitalTopicId) {
+      return NextResponse.json({ error: 'Invalid institution DID format' }, { status: 400 });
+    }
 
-    let aesKeyToUnlock = null, storageLocation = null, aesIv = null, providerAuthTag = null;
+    let aesKeyToUnlock = null, storageLocation = null, aesIv = null, providerAuthTag = null, expirationTime = null;
     if (requestType === 'access-approval') {
       const iv = Buffer.from(metadataJson.properties.iv, 'hex');
       aesIv = iv;
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const authTag = Buffer.from(metadataJson.properties.authTag, 'hex');
       const encryptedAesKey = Buffer.from(metadataJson.properties.encryptedAesKey, 'base64');
       const ephemeralPublicKey = PublicKey.fromStringECDSA(metadataJson.properties.ephemeralPublicKey);
@@ -247,10 +251,29 @@ export async function PATCH(request: NextRequest) {
 
       // const upload = await pinata.upload.public.file(file);
       // storageLocation = `ipfs:${upload.cid}`;
-      const fileTx = await new FileCreateTransaction()
-        .setContents(encryptedForProvider)
-        .setKeys([PublicKey.fromStringECDSA(config.hedera.hfsKey.publicKey)])
-        .freezeWith(client);
+      // Hedera requires a Timestamp object
+      let fileTx = await new FileCreateTransaction()
+      .setContents(encryptedForProvider)
+      .setKeys([PublicKey.fromStringECDSA(config.hedera.hfsKey.publicKey)]);
+      
+      if (requestedDuration > 0) {
+        const expiryTime = Math.floor(Date.now() / 1000) + requestedDuration * 60;
+        expirationTime = new Date(expiryTime * 1000).toISOString();
+        const expirationTimestamp = Timestamp.fromDate(new Date(expiryTime * 1000));
+        fileTx = fileTx.setExpirationTime(expirationTimestamp);
+        scheduleExpiryMessage({
+          requestId: requestIdFromUI,
+          topicId: patientTopicId,
+          expirationTime
+        });
+        scheduleExpiryMessage({
+          requestId: requestIdFromUI,
+          topicId: hospitalTopicId,
+          expirationTime
+        });
+      }
+
+      fileTx = fileTx.freezeWith(client);
       const signTx = await fileTx.sign(PrivateKey.fromStringECDSA(config.hedera.hfsKey.privateKey));
       const submitTx = await signTx.execute(client);
       const receipt = await submitTx.getReceipt(client);
@@ -277,6 +300,7 @@ export async function PATCH(request: NextRequest) {
       reason,
       accessType,
       requestedDuration,
+      expirationTime,
       institutionDetails: {
         id: institutionDetails.id,
         name: institutionDetails.institutionName,
@@ -295,14 +319,6 @@ export async function PATCH(request: NextRequest) {
       .setMessage(message)
       .execute(client);
 
-    // Send to hospital topic (from institutionDetails.did)
-    let hospitalTopicId = null;
-    if (institutionDetails.did) {
-      const instDidParts = institutionDetails.did.split(/[:_]/);
-      if (instDidParts.length > 0) {
-        hospitalTopicId = instDidParts[instDidParts.length - 1];
-      }
-    }
     if (hospitalTopicId) {
       await new TopicMessageSubmitTransaction()
         .setTopicId(hospitalTopicId)
@@ -317,6 +333,7 @@ export async function PATCH(request: NextRequest) {
     });
 
   } catch (error) {
+    console.error('Error processing access request:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Request failed' },
       { status: 500 }

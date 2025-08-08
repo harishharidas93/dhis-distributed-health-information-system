@@ -123,7 +123,7 @@ async function fetchAllTopicMessages(topicId: string): Promise<any[]> {
     const res: any = await axiosInstance.get(nextUrl);
     const { messages, links } = res.data;
     allMessages = allMessages.concat(messages);
-    nextUrl = links?.next ? links.next : null;
+    nextUrl = links?.next ? links.next.replace('/api/v1', '') : null;
   }
   return allMessages;
 }

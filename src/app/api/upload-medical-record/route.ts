@@ -160,7 +160,7 @@ export async function PUT(request: NextRequest) {
         iv: iv.toString('hex'),
         authTag: authTag.toString('hex'),
         encryptedAesKey: encryptedAesKey.toString('base64'),
-        ephemeralPublicKey: ephemeralPublicKey.toStringRaw(),
+        ephemeralPublicKey: ephemeralPublicKey.toStringDer(),
         keyAuthTag: keyAuthTag.toString('hex'),
         patientDID: patientDetails.did,
       },
@@ -189,139 +189,139 @@ export async function PUT(request: NextRequest) {
 }
 
 // 🟢 POST — Request Access (Provider)
-export async function POST(request: NextRequest) {
-  try {
-    const { 
-      nftId,
-      reason,
-      accessType,
-      requestedDuration,
-      urgency,
-      patientId,
-      instituitionId,
-      requestedAt,
-      requestType, // 'access-request' or 'access-approval' or 'access-revoke' or 'access-reject' or 'access-timed-out'
-    } = await request.json();
-    if (!nftId) {
-      return NextResponse.json(
-        { error: 'Missing required fields' },
-        { status: 400 }
-      );
-    }
-    const userDetails = getUserById(patientId);
-    const institutionDetails = getUserById(instituitionId);
-    if (!userDetails || !institutionDetails) {
-      return NextResponse.json(
-        { error: 'Invalid patient or institution ID' },
-        { status: 400 }
-      );
-    }
-    // 1. Fetch NFT details (from mirror node or your NFT API)
-    let nftDetails;
-    try {
-      nftDetails = await mirrorNode.fetchNFTInfo(nftId);
-    } catch (err) {
-      return NextResponse.json({ error: 'Failed to fetch NFT details' }, { status: 500 });
-    }
+// export async function POST(request: NextRequest) {
+//   try {
+//     const { 
+//       nftId,
+//       reason,
+//       accessType,
+//       requestedDuration,
+//       urgency,
+//       patientId,
+//       instituitionId,
+//       requestedAt,
+//       requestType, // 'access-request' or 'access-approval' or 'access-revoke' or 'access-reject' or 'access-timed-out'
+//     } = await request.json();
+//     if (!nftId) {
+//       return NextResponse.json(
+//         { error: 'Missing required fields' },
+//         { status: 400 }
+//       );
+//     }
+//     const userDetails = getUserById(patientId);
+//     const institutionDetails = getUserById(instituitionId);
+//     if (!userDetails || !institutionDetails) {
+//       return NextResponse.json(
+//         { error: 'Invalid patient or institution ID' },
+//         { status: 400 }
+//       );
+//     }
+//     // 1. Fetch NFT details (from mirror node or your NFT API)
+//     let nftDetails;
+//     try {
+//       nftDetails = await mirrorNode.fetchNFTInfo(nftId);
+//     } catch (err) {
+//       return NextResponse.json({ error: 'Failed to fetch NFT details' }, { status: 500 });
+//     }
 
-    // 2. Get metadata CID from NFT details
-    let metadataCid;
-    if (nftDetails && nftDetails.metadata) {
-      try {
-        metadataCid = Buffer.from(nftDetails.metadata, 'base64').toString('utf-8');
-      } catch (err) {
-        return NextResponse.json({ error: 'Invalid NFT metadata encoding' }, { status: 500 });
-      }
-    } else {
-      return NextResponse.json({ error: 'NFT metadata not found' }, { status: 404 });
-    }
+//     // 2. Get metadata CID from NFT details
+//     let metadataCid;
+//     if (nftDetails && nftDetails.metadata) {
+//       try {
+//         metadataCid = Buffer.from(nftDetails.metadata, 'base64').toString('utf-8');
+//       } catch (err) {
+//         return NextResponse.json({ error: 'Invalid NFT metadata encoding' }, { status: 500 });
+//       }
+//     } else {
+//       return NextResponse.json({ error: 'NFT metadata not found' }, { status: 404 });
+//     }
 
-    // 3. Fetch metadata JSON from Pinata/IPFS
-    let metadataJson;
-    try {
-      const metaRes = await axios.get(`${config.pinata.gatewayUrl}${metadataCid}`);
-      metadataJson = metaRes.data;
-    } catch (err) {
-      return NextResponse.json({ error: 'Failed to fetch NFT metadata JSON' }, { status: 500 });
-    }
+//     // 3. Fetch metadata JSON from Pinata/IPFS
+//     let metadataJson;
+//     try {
+//       const metaRes = await axios.get(`${config.pinata.gatewayUrl}${metadataCid}`);
+//       metadataJson = metaRes.data;
+//     } catch (err) {
+//       return NextResponse.json({ error: 'Failed to fetch NFT metadata JSON' }, { status: 500 });
+//     }
 
-    // 5. Get topic id from patientDID (last part after last colon or underscore)
-    let patientTopicId = null;
-    // Split by both colon and underscore, take last segment
-    const didParts = userDetails.did.split(/[:_]/);
-    if (didParts.length > 0) {
-      patientTopicId = didParts[didParts.length - 1];
-    }
-    if (!patientTopicId) {
-      return NextResponse.json({ error: 'Invalid patient DID format' }, { status: 400 });
-    }
+//     // 5. Get topic id from patientDID (last part after last colon or underscore)
+//     let patientTopicId = null;
+//     // Split by both colon and underscore, take last segment
+//     const didParts = userDetails.did.split(/[:_]/);
+//     if (didParts.length > 0) {
+//       patientTopicId = didParts[didParts.length - 1];
+//     }
+//     if (!patientTopicId) {
+//       return NextResponse.json({ error: 'Invalid patient DID format' }, { status: 400 });
+//     }
 
-    // const client = await getHederaClient();
-    const requestId = crypto.randomUUID();
+//     // const client = await getHederaClient();
+//     const requestId = crypto.randomUUID();
 
-    // Submit to HCS
-    const message = JSON.stringify({
-      requestType,
-      urgency,
-      requestedAt,
-      requestId,
-      patientDetails: {
-        id: userDetails.id,
-        name: userDetails.patientName,
-        did: userDetails.did,
-      },
-      nftId,
-      reason,
-      accessType,
-      requestedDuration,
-      institutionDetails: {
-        id: institutionDetails.id,
-        name: institutionDetails.institutionName,
-        did: institutionDetails.did,
-      },
-      recordDetails: {
-        nftId,
-        metadataCid,
-        name: metadataJson.name,
-        description: metadataJson.description,
-      },
-      timestamp: new Date().toISOString()
-    });
+//     // Submit to HCS
+//     const message = JSON.stringify({
+//       requestType,
+//       urgency,
+//       requestedAt,
+//       requestId,
+//       patientDetails: {
+//         id: userDetails.id,
+//         name: userDetails.patientName,
+//         did: userDetails.did,
+//       },
+//       nftId,
+//       reason,
+//       accessType,
+//       requestedDuration,
+//       institutionDetails: {
+//         id: institutionDetails.id,
+//         name: institutionDetails.institutionName,
+//         did: institutionDetails.did,
+//       },
+//       recordDetails: {
+//         nftId,
+//         metadataCid,
+//         name: metadataJson.name,
+//         description: metadataJson.description,
+//       },
+//       timestamp: new Date().toISOString()
+//     });
 
-    await new TopicMessageSubmitTransaction()
-      .setTopicId(patientTopicId)
-      .setMessage(message)
-      .execute(client);
+//     await new TopicMessageSubmitTransaction()
+//       .setTopicId(patientTopicId)
+//       .setMessage(message)
+//       .execute(client);
 
-    // Send to hospital topic (from institutionDetails.did)
-    let hospitalTopicId = null;
-    if (institutionDetails.did) {
-      const instDidParts = institutionDetails.did.split(/[:_]/);
-      if (instDidParts.length > 0) {
-        hospitalTopicId = instDidParts[instDidParts.length - 1];
-      }
-    }
-    let submitTxHospital = null;
-    if (hospitalTopicId) {
-      submitTxHospital = await new TopicMessageSubmitTransaction()
-        .setTopicId(hospitalTopicId)
-        .setMessage(message)
-        .execute(client);
-    }
+//     // Send to hospital topic (from institutionDetails.did)
+//     let hospitalTopicId = null;
+//     if (institutionDetails.did) {
+//       const instDidParts = institutionDetails.did.split(/[:_]/);
+//       if (instDidParts.length > 0) {
+//         hospitalTopicId = instDidParts[instDidParts.length - 1];
+//       }
+//     }
+//     let submitTxHospital = null;
+//     if (hospitalTopicId) {
+//       submitTxHospital = await new TopicMessageSubmitTransaction()
+//         .setTopicId(hospitalTopicId)
+//         .setMessage(message)
+//         .execute(client);
+//     }
 
-    return NextResponse.json({
-      success: true,
-      requestId,
-      message
-    });
+//     return NextResponse.json({
+//       success: true,
+//       requestId,
+//       message
+//     });
 
-  } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Request failed' },
-      { status: 500 }
-    );
-  }
-}
+//   } catch (error) {
+//     return NextResponse.json(
+//       { error: error instanceof Error ? error.message : 'Request failed' },
+//       { status: 500 }
+//     );
+//   }
+// }
 
 // 🟢 PATCH — Approve Access (Patient)
 // export async function PATCH(request: NextRequest) {
@@ -442,77 +442,77 @@ export async function POST(request: NextRequest) {
 // }
 
 // 🟢 GET — Decrypt and Serve PDF (Provider)
-export async function GET(request: NextRequest) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const metadataCid = searchParams.get('cid');
-    const providerKey = searchParams.get('providerKey');
-    const providerDID = searchParams.get('providerDID');
+// export async function GET(request: NextRequest) {
+//   try {
+//     const { searchParams } = new URL(request.url);
+//     const metadataCid = searchParams.get('cid');
+//     const providerKey = searchParams.get('providerKey');
+//     const providerDID = searchParams.get('providerDID');
     
-    if (!metadataCid || !providerKey || !providerDID) {
-      return NextResponse.json(
-        { error: 'Missing required parameters' },
-        { status: 400 }
-      );
-    }
+//     if (!metadataCid || !providerKey || !providerDID) {
+//       return NextResponse.json(
+//         { error: 'Missing required parameters' },
+//         { status: 400 }
+//       );
+//     }
 
-    // 1. Verify access rights
-    // For now, assuming access is granted if the encrypted key exists
+//     // 1. Verify access rights
+//     // For now, assuming access is granted if the encrypted key exists
 
-    // 2. Get original metadata
-    const metadataRes = await axios.get(`${config.pinata.gatewayUrl}${metadataCid}`);
-    const metadata = metadataRes.data;
+//     // 2. Get original metadata
+//     const metadataRes = await axios.get(`${config.pinata.gatewayUrl}${metadataCid}`);
+//     const metadata = metadataRes.data;
 
-    // 3. Get provider-specific encrypted key
-    const encryptedAesKey = Buffer.from(metadata.properties.encryptedAesKey, 'base64');
-    const iv = Buffer.from(metadata.properties.iv, 'hex');
-    const keyAuthTag = Buffer.from(metadata.properties.keyAuthTag, 'hex');
+//     // 3. Get provider-specific encrypted key
+//     const encryptedAesKey = Buffer.from(metadata.properties.encryptedAesKey, 'base64');
+//     const iv = Buffer.from(metadata.properties.iv, 'hex');
+//     const keyAuthTag = Buffer.from(metadata.properties.keyAuthTag, 'hex');
 
-    // 4. Decrypt with provider's key
-    const providerPubKey = PublicKey.fromStringECDSA(providerKey);
-    const sharedSecret = await computeHederaSharedSecret(patientPrivateKey, providerPubKey);
+//     // 4. Decrypt with provider's key
+//     const providerPubKey = PublicKey.fromStringECDSA(providerKey);
+//     const sharedSecret = await computeHederaSharedSecret(patientPrivateKey, providerPubKey);
     
-    // Derive decryption key with proper typing
-    const derivedKey = Buffer.from(
-      crypto.hkdfSync(
-        'sha256',
-        sharedSecret,
-        Buffer.from(''), // salt
-        Buffer.from(''), // info
-        32
-      )
-    );
+//     // Derive decryption key with proper typing
+//     const derivedKey = Buffer.from(
+//       crypto.hkdfSync(
+//         'sha256',
+//         sharedSecret,
+//         Buffer.from(''), // salt
+//         Buffer.from(''), // info
+//         32
+//       )
+//     );
 
-    const keyDecipher = crypto.createDecipheriv('aes-256-gcm', derivedKey, iv);
-    keyDecipher.setAuthTag(keyAuthTag);
-    const aesKey = Buffer.concat([
-      keyDecipher.update(encryptedAesKey),
-      keyDecipher.final()
-    ]);
+//     const keyDecipher = crypto.createDecipheriv('aes-256-gcm', derivedKey, iv);
+//     keyDecipher.setAuthTag(keyAuthTag);
+//     const aesKey = Buffer.concat([
+//       keyDecipher.update(encryptedAesKey),
+//       keyDecipher.final()
+//     ]);
 
-    // 5. Fetch and decrypt file
-    const fileRes = await axios.get(metadata.image, { responseType: 'arraybuffer' });
-    const encryptedBuffer = Buffer.from(fileRes.data);
-    const authTag = Buffer.from(metadata.properties.authTag, 'hex');
+//     // 5. Fetch and decrypt file
+//     const fileRes = await axios.get(metadata.image, { responseType: 'arraybuffer' });
+//     const encryptedBuffer = Buffer.from(fileRes.data);
+//     const authTag = Buffer.from(metadata.properties.authTag, 'hex');
 
-    const decipher = crypto.createDecipheriv('aes-256-gcm', aesKey, iv);
-    decipher.setAuthTag(authTag);
-    const decrypted = Buffer.concat([decipher.update(encryptedBuffer), decipher.final()]);
+//     const decipher = crypto.createDecipheriv('aes-256-gcm', aesKey, iv);
+//     decipher.setAuthTag(authTag);
+//     const decrypted = Buffer.concat([decipher.update(encryptedBuffer), decipher.final()]);
 
-    return new NextResponse(decrypted, {
-      headers: {
-        'Content-Type': 'application/pdf',
-        'Content-Disposition': 'inline; filename="decrypted.pdf"',
-        ...corsHeaders,
-      },
-    });
-  } catch (error) {
-    return NextResponse.json(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : 'Decryption failed',
-      },
-      { status: 500, headers: corsHeaders }
-    );
-  }
-}
+//     return new NextResponse(decrypted, {
+//       headers: {
+//         'Content-Type': 'application/pdf',
+//         'Content-Disposition': 'inline; filename="decrypted.pdf"',
+//         ...corsHeaders,
+//       },
+//     });
+//   } catch (error) {
+//     return NextResponse.json(
+//       {
+//         success: false,
+//         error: error instanceof Error ? error.message : 'Decryption failed',
+//       },
+//       { status: 500, headers: corsHeaders }
+//     );
+//   }
+// }

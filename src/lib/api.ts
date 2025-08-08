@@ -10,7 +10,7 @@ export const API_CONFIG = {
     UPLOAD_METADATA: '/hedera/metadata',
     MINT_NFT: '/hedera/nft',
     SUBMIT_TRANSACTION: '/hedera/submit-transaction',
-    UPLOAD_MEDICAL_RECORD: '/dhis/medical-record',
+    UPLOAD_MEDICAL_RECORD: '/upload-medical-record',
     ACCESS_REQUESTS: '/access-requests',
 
     // User endpoints
