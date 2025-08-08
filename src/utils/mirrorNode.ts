@@ -128,6 +128,50 @@ async function fetchAllTopicMessages(topicId: string): Promise<any[]> {
   return allMessages;
 }
 
+function groupAndDecodeChunks(messages: any[]) {
+  const grouped: Record<string, any[]> = {};
+
+  // Group messages by initial_transaction_id (or fallback to consensus_timestamp)
+  for (const msg of messages) {
+    const txId = msg.chunk_info?.initial_transaction_id?.transaction_valid_start || msg.consensus_timestamp;
+
+    if (!grouped[txId]) {
+      grouped[txId] = [];
+    }
+
+    grouped[txId].push(msg);
+  }
+
+  const decodedMessages = Object.values(grouped).map((group) => {
+    try {
+      // Sort chunks in order
+      const sortedGroup = group.sort((a, b) =>
+        (a.chunk_info?.number || 1) - (b.chunk_info?.number || 1)
+      );
+
+      // Step 1: Decode base64 to string (not yet JSON)
+      const decodedParts = sortedGroup.map((msg) =>
+        Buffer.from(msg.message, 'base64').toString('utf-8')
+      );
+
+      // Step 2: Concatenate string parts
+      const mergedJsonString = decodedParts.join('');
+
+      // Step 3: Parse final JSON
+      const parsed = JSON.parse(mergedJsonString);
+
+      return {
+        ...parsed,
+        consensus_timestamp: sortedGroup[0].consensus_timestamp,
+      };
+    } catch (e) {
+      return null; // skip if any error
+    }
+  });
+
+  return decodedMessages.filter(Boolean); // remove nulls
+}
+
 const exportedFunctions = {
   fetchAccountInfo,
   fetchTokenInfo,
@@ -135,6 +179,7 @@ const exportedFunctions = {
   fetchNftTransactions,
   fetchAllNFTs,
   fetchAllTopicMessages,
+  groupAndDecodeChunks,
 };
 
 export default exportedFunctions;

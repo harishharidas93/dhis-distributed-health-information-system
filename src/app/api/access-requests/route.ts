@@ -49,16 +49,17 @@ export async function GET(request: NextRequest) {
       );
     }
     const messages = await mirrorNode.fetchAllTopicMessages(topicId as string);
+    const decoded = mirrorNode.groupAndDecodeChunks(messages);
 
-    const decoded = messages.map((msg: any) => {
-      try {
-        const jsonStr = Buffer.from(msg.message, 'base64').toString('utf-8');
-        const data = JSON.parse(jsonStr);
-        return { ...data, consensus_timestamp: msg.consensus_timestamp };
-      } catch {
-        return null;
-      }
-    }).filter(Boolean);
+    // const decoded = messages.map((msg: any) => {
+    //   try {
+    //     const jsonStr = Buffer.from(msg.message, 'base64').toString('utf-8');
+    //     const data = JSON.parse(jsonStr);
+    //     return { ...data, consensus_timestamp: msg.consensus_timestamp };
+    //   } catch {
+    //     return null;
+    //   }
+    // }).filter(Boolean);
 
     // Group and merge messages by requestId
     const requestMap = new Map<string, any>();
@@ -109,12 +110,6 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
-
-async function computeHederaSharedSecret(privateKey: PrivateKey, publicKey: PublicKey): Promise<Buffer> {
-  const ecdh = crypto.createECDH('secp256k1');
-  ecdh.setPrivateKey(Buffer.from(privateKey.toBytesRaw()));
-  return ecdh.computeSecret(Buffer.from(publicKey.toBytesRaw()));
 }
 
 export async function PATCH(request: NextRequest) {
@@ -201,7 +196,7 @@ export async function PATCH(request: NextRequest) {
       const salt = userDetails.salt;
       const saltBuffer = Buffer.from(salt.data);
       const patientPrivateKey = imageProcessor.deriveHederaPrivateKey(passkey, saltBuffer);
-      const sharedSecret = await computeHederaSharedSecret(patientPrivateKey, ephemeralPublicKey);
+      const sharedSecret = await imageProcessor.computeHederaSharedSecret(patientPrivateKey, ephemeralPublicKey);
       // Derive decryption key with proper typing
       const derivedKey = Buffer.from(
         crypto.hkdfSync(
@@ -225,7 +220,7 @@ export async function PATCH(request: NextRequest) {
         return NextResponse.json({ error: 'Invalid institution DID format' }, { status: 400 });
       }
       // // 3. Re-encrypt for provider
-      const providerSharedSecret = await computeHederaSharedSecret(patientPrivateKey, providerPublicKey);
+      const providerSharedSecret = await imageProcessor.computeHederaSharedSecret(patientPrivateKey, providerPublicKey);
       
       const providerDerivedKey = Buffer.from( 
           crypto.hkdfSync(

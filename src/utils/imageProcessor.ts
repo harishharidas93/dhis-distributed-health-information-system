@@ -66,6 +66,12 @@ const getPublicKeyFromDID = (did: string) => {
   return PublicKey.fromStringECDSA(publicKeyString);
 };
 
+const computeHederaSharedSecret = async (privateKey: PrivateKey, publicKey: PublicKey): Promise<Buffer> => {
+  const ecdh = crypto.createECDH('secp256k1');
+  ecdh.setPrivateKey(Buffer.from(privateKey.toBytesRaw()));
+  return ecdh.computeSecret(Buffer.from(publicKey.toBytesRaw()));
+}
+
 export default {
   generateChecksum,
   deriveHederaPrivateKey,
@@ -75,4 +81,5 @@ export default {
   encodeJsonToBase64,
   decodeBase64,
   getPublicKeyFromDID,
+  computeHederaSharedSecret,
 };

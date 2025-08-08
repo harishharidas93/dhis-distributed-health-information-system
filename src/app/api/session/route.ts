@@ -25,34 +25,6 @@ const corsHeaders = {
   'Access-Control-Allow-Credentials': 'true',
 };
 
-// HARDCODED TEST KEYS
-const PATIENT_PUBLIC_KEY_HEX = '02d5778d3acaf2e0c98d833e91bb3112b77ddeedf46850d6af5dd56a613490ed9e';
-const PATIENT_PRIVATE_KEY_HEX = '3d4f8e48e193f416e44362da7d34f068a5ce8f358a6ab8e2a20d0b9abd9bd853';
-
-// Convert to usable key objects
-// const patientPublicKey = PublicKey.fromStringECDSA(PATIENT_PUBLIC_KEY_HEX);
-// const patientPrivateKey = PrivateKey.fromStringECDSA(PATIENT_PRIVATE_KEY_HEX);
-
-// Initialize Hedera client
-// let hederaClient: Client | null = null;
-// async function getHederaClient() {
-//   if (!hederaClient) {
-//     hederaClient = Client.forName(config.hedera.network);
-//     hederaClient.setOperator(
-//       config.hedera.accountId, 
-//       PrivateKey.fromStringECDSA(config.hedera.privateKey)
-//     );
-//   }
-//   return hederaClient;
-// }
-
-// Helper function to compute ECDH shared secret
-async function computeHederaSharedSecret(privateKey: PrivateKey, publicKey: PublicKey): Promise<Buffer> {
-  const ecdh = crypto.createECDH('secp256k1');
-  ecdh.setPrivateKey(Buffer.from(privateKey.toBytesRaw()));
-  return ecdh.computeSecret(Buffer.from(publicKey.toBytesRaw()));
-}
-
 // Handle preflight
 export async function OPTIONS() {
   return new NextResponse(null, { status: 200, headers: corsHeaders });
@@ -146,7 +118,7 @@ export async function POST(request: NextRequest) {
     const saltBuffer = Buffer.from(salt.data);
     const providerPrivateKey = imageProcessor.deriveHederaPrivateKey(passkey, saltBuffer);
     
-    const sharedSecret = await computeHederaSharedSecret(providerPrivateKey, patientPublicKey);
+    const sharedSecret = await imageProcessor.computeHederaSharedSecret(providerPrivateKey, patientPublicKey);
     
     // Derive decryption key with proper typing
     const derivedKey = Buffer.from(
