@@ -52,7 +52,7 @@ export const useStore = create<StoreState>()(
       setPendingRequestsCount: (count: number) => set({ pendingRequestsCount: count }),
     }),
     {
-      name: 'mint-bridge-store', // localStorage key
+      name: 'dhis-store', // localStorage key
     }
   )
 );

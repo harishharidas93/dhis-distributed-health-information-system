@@ -164,7 +164,8 @@ function groupAndDecodeChunks(messages: any[]) {
         ...parsed,
         consensus_timestamp: sortedGroup[0].consensus_timestamp,
       };
-    } catch (e) {
+    } catch (e: any) {
+      console.error('Error decoding message:', e, 'Message:', group);
       return null; // skip if any error
     }
   });

@@ -8,8 +8,8 @@ export const getHashConnect = async () => {
     const { HashConnect } = await import('hashconnect'); // ✅ dynamic import
 
     const appMetadata = {
-      name: 'Mint bridge',
-      description: 'One minting platform, bridging across chains and wallets',
+      name: 'dHIS',
+      description: 'Distributed Health information system',
       icons: ['https://i.ibb.co/pvsCcrh3/mint-bridge-icon.png'],
       url: typeof window !== 'undefined' ? window.location.hostname : '',
     };

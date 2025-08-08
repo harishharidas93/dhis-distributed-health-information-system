@@ -41,6 +41,7 @@ export const addUser = async (user: {
   walletAddress: string;
   type: 'hospital' | 'patient';
   did: string;
+  salt: Buffer;
   createdAt: string;
 }): Promise<User> => {
   const newUser: User = { id: uuid(), ...user };

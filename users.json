@@ -2,7 +2,7 @@
   "users": [
     {
       "id": "4bb2b42e-01db-4cc4-9835-4883024f11e1",
-      "patientName": "Patient",
+      "patientName": "Patient Dummy",
       "walletAddress": "0.0.5505801",
       "type": "patient",
       "createdAt": "2025-08-07T21:13:28.523Z",
@@ -32,7 +32,7 @@
     {
       "id": "2b7ebed1-158c-4a5e-a0b3-8b97d2e5f719",
       "institutionId": "h1",
-      "institutionName": "hosp",
+      "institutionName": "Hospital Dummy",
       "walletAddress": "0.0.5520659",
       "type": "hospital",
       "createdAt": "2025-08-07T22:46:18.440Z",
@@ -56,6 +56,65 @@
           137,
           230,
           194
+        ]
+      }
+    },
+    {
+      "id": "320e6b45-33e6-41ec-9fd1-7666ef36d412",
+      "patientName": "Patient",
+      "walletAddress": "0.0.6533812",
+      "type": "patient",
+      "createdAt": "2025-08-08T21:45:08.039Z",
+      "did": "did:hedera:testnet:zTaGR9erdgBHyCYsKeif5qZtLnXWENMjK1zfXYaJeco3Z2AVsF7vdf21FDHgXrXcUHwwZDS7qz4vTxYXLu4tutoMF4A81hJw7bjqKbKJCZQXBTPdX15vg8Yq2TAWi8vPK7CBuRSaj1m783L_0.0.6533823",
+      "salt": {
+        "type": "Buffer",
+        "data": [
+          94,
+          247,
+          1,
+          107,
+          161,
+          40,
+          63,
+          1,
+          41,
+          126,
+          44,
+          24,
+          142,
+          109,
+          212,
+          86
+        ]
+      }
+    },
+    {
+      "id": "021e4ddd-13ff-4529-bcd6-73798670ceb6",
+      "institutionId": "H-12",
+      "institutionName": "Hospital",
+      "walletAddress": "0.0.6533817",
+      "type": "hospital",
+      "createdAt": "2025-08-08T21:45:31.475Z",
+      "did": "did:hedera:testnet:zTaGR9erdgBHyCYsKeif5qZtLnXWENMjK1zfXYaJZ4QcqeDSdk5KdoTQQnUFWUP9PmXSYbqLXJdwL5Bq3hmVEFjR4TCFYPJPdprsGeosaqPH4x77omdJ2pipg7N7c8NdRjEawTT5UQg7JUu_0.0.6533826",
+      "salt": {
+        "type": "Buffer",
+        "data": [
+          64,
+          78,
+          32,
+          178,
+          101,
+          225,
+          147,
+          233,
+          94,
+          170,
+          2,
+          17,
+          116,
+          175,
+          152,
+          67
         ]
       }
     }

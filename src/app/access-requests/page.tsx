@@ -304,7 +304,7 @@ const AccessRequests = () => {
                       </div>
                       <div className="flex items-center space-x-2">
                         <Badge variant={(request.status === 'approved' || request.status === 'completed') ? 'default' : 'destructive'}>
-                          {request.status.charAt(0).toUpperCase() + request.status.slice(1)}
+                          {(request.status as Capitalize<string>).charAt(0).toUpperCase() + (request.status as Capitalize<string>).slice(1)}
                         </Badge>
                       </div>
                     </div>

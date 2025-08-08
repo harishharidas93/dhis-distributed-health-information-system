@@ -3,7 +3,7 @@ import { PinataSDK } from 'pinata';
 import { config } from '@/config/config';
 import imageProcessor from '@/utils/imageProcessor';
 import crypto from 'crypto';
-import { PublicKey, PrivateKey } from '@hashgraph/sdk';
+import { PrivateKey } from '@hashgraph/sdk';
 import { getUserByWalletAddress } from '@/services/lowdb.service';
 
 const pinata = new PinataSDK({

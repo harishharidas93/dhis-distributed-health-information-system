@@ -19,8 +19,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Mint Bridge | Home",
-  description: "One minting platform, bridging across chains and wallets",
+  title: "dHis | Home",
+  description: "Distributed Health information system",
 };
 
 export default function RootLayout({

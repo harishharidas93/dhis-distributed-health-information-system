@@ -223,7 +223,7 @@ export async function PATCH(request: NextRequest) {
       const keyAuthTag = Buffer.from(metadataJson.properties.keyAuthTag, 'hex');
       
       const salt = userDetails.salt;
-      const saltBuffer = Buffer.from(salt.data);
+      const saltBuffer = Buffer.from(salt);
       const patientPrivateKey = imageProcessor.deriveHederaPrivateKey(passkey, saltBuffer);
       const sharedSecret = await imageProcessor.computeHederaSharedSecret(patientPrivateKey, ephemeralPublicKey);
       // Derive decryption key with proper typing
