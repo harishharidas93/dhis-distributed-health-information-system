@@ -183,15 +183,48 @@ Visit `http://localhost:3000`.
 
 ## 🧪 API Overview
 
-Medical Record API — `/api/dhis/medical-record`
-- Upload/Encrypt (multipart): encrypts PDF with AES‑GCM, uploads to IPFS, returns metadata CID.
-- Session decrypt (POST/stream): decrypts the IPFS file for an approved session.
+Medical Record API — `/api/upload-medical-record`
+- PUT (multipart/form-data): Encrypts PDF with AES‑256‑GCM on the server and uploads the encrypted blob and metadata to IPFS (via Pinata).
+  - Inputs: `document` (file), `name`, `description`, `collectionId`, `collectionName`, `walletAddress`.
+  - Output: `{ metadataCid, fileCid }` (IPFS CIDs for metadata and encrypted file).
+
+Session API — `/api/session`
+- POST: Streams a decrypted PDF to the browser for an approved session.
+  - Inputs (JSON):
+    - `recordDetails.metadataCid` — IPFS metadata CID
+    - `aesLockLocation` — HFS fileId for the provider‑encrypted AES key (e.g., `hfs:0.0.x`)
+    - `aesIv`, `providerAuthTag` — GCM parameters (binary buffers from approval)
+    - `institutionDetails.id` — provider ID (to derive provider key from passkey + salt)
+    - `patientDetails.did` — used to compute ECDH shared secret
+    - `passkey` — provider’s passkey to derive Hedera private key
+  - Flow: Download metadata → fetch provider‑encrypted AES key from HFS → ECDH derive → decrypt AES key → decrypt file → stream PDF.
 
 Access Requests API — `/api/access-requests`
-- GET: Reads HCS topic messages via Mirror Node; merges chunked messages.
-- PATCH: Processes access‑request lifecycle: request/approve/reject/revoke/completed; on approval, re‑encrypts AES key for provider; on completion, cancels expiry timers and deletes provider key blob from HFS.
+- GET: Aggregates request/approval/reject/revoke/completed messages from HCS topics (patient and hospital) using Mirror Node; merges chunked messages and computes current status per `requestId`.
+- PATCH: Advances state transitions:
+  - `access-request` — create a request (provider → patient).
+  - `access-approval` — patient re‑encrypts AES key for provider, optionally sets expiry; stores provider key blob in HFS; schedules expiry messages.
+  - `access-reject` / `access-revoke` — mark as rejected/revoked.
+  - `access-completed` — early completion; cancels expiry timers and deletes HFS key blob.
 
 ---
+
+## 📄 Pages Overview (selected)
+
+Patient/General
+- `src/app/page.tsx` — Landing page.
+- `src/app/dashboard/page.tsx` — Patient dashboard: merges quick actions and KPIs, inline NFT records table. Uses React Query for parallel data where relevant.
+- `src/app/upload/page.tsx` — Upload records; encrypts + uploads; mints/associates as needed.
+- `src/app/access-requests/page.tsx` — Manage incoming requests; approve/reject with time windows.
+- `src/app/profile/page.tsx` — Profile and settings.
+
+Hospital/Provider
+- `src/app/hospital-dashboard/page.tsx` — Provider dashboard; pending requests count with disabled state when zero; navigates to requests.
+- `src/app/hospital-access-request/page.tsx` — Create/manage access requests; session controls:
+  - Start Session → prompts for passkey, calls `/api/session`, shows inline PDF (downloads disabled).
+  - Stop Session → local pause only (clears iframe and session state).
+  - Complete Session → calls `/api/access-requests` (`access-completed`) to finalize, cancels expiry, deletes HFS key blob.
+- `src/app/hospital-record-creation/page.tsx` — Provider‑originated record upload.
 
 ## 📎 Legal & Scope
 
